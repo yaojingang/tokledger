@@ -4,31 +4,39 @@
 
 [Product brief](docs/PRODUCT_BRIEF.md) | [Positioning & roadmap](docs/POSITIONING_AND_ROADMAP.md) | [定位与路线图（简体中文）](docs/POSITIONING_AND_ROADMAP.zh-CN.md)
 
-TokLedger is a local-first token ledger for desktop AI coding tools. It scans
-local usage logs, proxy responses, and conversation aggregates from tools such
-as Codex, Warp, Kaku, and CodeBuddy; normalizes them into `exact`, `partial`,
-and `estimated` records inside one SQLite ledger; and turns them into
-terminal-first reports by date, terminal, model, source, client coverage,
-trend, and estimated API cost. The core CLI is `tokstat`, and the operator
-shortcut is `tok`.
+TokLedger is the lightweight, local-first usage ledger for AI coding tools.
+It helps individual developers track tokens, cost, models, terminals, and
+clients across Codex, Warp, Kaku, CodeBuddy, and similar desktop workflows
+without requiring SDK instrumentation for log-based sources. The core CLI is
+`tokstat`, and the operator shortcut is `tok`.
+
+In one sentence:
+
+- TokLedger is a lightweight, local-first ledger that turns fragmented AI
+  coding tool usage into one honest, terminal-first account of tokens and
+  cost.
 
 ![TokLedger terminal demo](docs/assets/tokledger-terminal-demo.svg)
 
-## Why TokLedger
+## Why it is different
 
-Most AI coding tools expose usage in separate places, with different levels of
-accuracy and different reporting models. TokLedger normalizes that data into a
-single local SQLite ledger and makes the measurement method explicit.
+Most LLM observability products assume you own the application and can add
+instrumentation. TokLedger starts from a different assumption: you are using
+several AI coding tools on one machine and need one trustworthy local ledger.
 
-What it does well:
+What TokLedger emphasizes:
 
-- local-first reporting with no hosted dashboard requirement
-- exact accounting where the source supports it
-- explicit `partial` and `estimated` labels where it does not
-- multi-tool daily reports by date, terminal, model, source, and client
-- shell-first workflow for people living in terminal and Kaku
-- report commands that auto-scan before rendering
-- built-in ASCII trend charts for multi-day reports
+- Lightweight by design: one local SQLite ledger, one terminal workflow, no
+  hosted dashboard requirement
+- Local-first by default: data stays on your machine unless you export it
+- Honest accounting: `exact`, `partial`, and `estimated` are explicit instead
+  of being mixed together
+- Built for AI coding tools: terminals, desktop assistants, IDE extensions,
+  and local proxies
+- Low-friction adoption: scan local logs where possible, proxy only where
+  exact accounting needs request/response usage
+- Personal operator workflow: daily reports, trends, pricing, shell
+  autosuggest, and fast CLI output
 
 ## Supported sources
 
@@ -55,14 +63,15 @@ Current source behavior:
 ## Highlights
 
 - One ledger across tools instead of separate vendor dashboards
+- Lightweight local CLI instead of a hosted observability stack
 - Honest reporting instead of pretending every number is equally precise
-- Daily and multi-day summaries with grouped tables
-- Model and terminal breakdowns for behavior analysis
-- Client coverage reports for exact vs partial vs estimated totals
+- Daily and multi-day summaries with grouped tables and trend charts
+- Model, terminal, source, and client coverage breakdowns
+- Local pricing overrides and estimated API cost views
 - Automatic scan and daily report support via `launchd`
 - Fast operator UX with `tok`, inline hints, autosuggest, and completion
 
-## Install
+## Install in 3 steps
 
 ```bash
 cd "/path/to/tokledger"
@@ -80,36 +89,87 @@ That installs:
 If you already had an older editable install, rerun `python3 -m pip install -e .`
 to pick up the `tok` entry point.
 
-## Quick start
+## First-run flow
 
-Scan all supported adapters:
+1. Verify the install and available commands:
 
 ```bash
-tokstat scan-all --timezone Asia/Shanghai
+tok help
+tok pricing
 ```
 
-Or use the operator shortcut, which auto-scans before rendering reports:
+2. See your first report:
 
 ```bash
 tok today
 tok last 7
 ```
 
-Show today:
+3. If you prefer the lower-level CLI:
 
 ```bash
 tokstat report-daily --date today --timezone Asia/Shanghai
-```
-
-Show the last week:
-
-```bash
 tokstat report-range --last 7 --timezone Asia/Shanghai
 ```
 
-Show client coverage:
+## Optional setup paths
+
+### Manual scanning
+
+Scan all supported adapters explicitly:
 
 ```bash
+tokstat scan-all --timezone Asia/Shanghai
+```
+
+### Precision for Kaku
+
+To capture Kaku usage precisely, run the local OpenAI-compatible proxy and
+point Kaku at it:
+
+```bash
+tokstat serve-proxy \
+  --host 127.0.0.1 \
+  --port 8765 \
+  --upstream-base-url https://api.vivgrid.com/v1 \
+  --timezone Asia/Shanghai
+```
+
+Then set:
+
+```toml
+base_url = "http://127.0.0.1:8765"
+```
+
+### Automatic mode on macOS
+
+Install the LaunchAgents if you want hourly scans and a daily report at
+`00:05`:
+
+```bash
+./scripts/install_launchd.sh
+```
+
+Remove them with:
+
+```bash
+./scripts/uninstall_launchd.sh
+```
+
+## Report commands
+
+The operator shortcut auto-scans before rendering reports:
+
+```bash
+tok today
+tok last 7
+```
+
+Lower-level equivalents:
+
+```bash
+tokstat report-daily --date today --timezone Asia/Shanghai
+tokstat report-range --last 7 --timezone Asia/Shanghai
 tokstat report-clients --date today --timezone Asia/Shanghai
 tokstat report-clients --last 7 --timezone Asia/Shanghai
 ```
@@ -188,58 +248,11 @@ Override example:
 }
 ```
 
-## Automatic mode on macOS
-
-The project supports both manual and automatic operation.
-
-Manual:
-
-- run scans yourself
-- render reports on demand
-
-Automatic:
-
-- scan every hour
-- generate yesterday's report every day at `00:05`
-
-Install the LaunchAgents:
-
-```bash
-./scripts/install_launchd.sh
-```
-
 Generated files:
 
 - database: `~/.tokstat/usage.sqlite`
 - reports: `~/.tokstat/reports/YYYY-MM-DD.txt`
 - logs: `~/.tokstat/logs/*.log`
-
-Remove the background jobs:
-
-```bash
-./scripts/uninstall_launchd.sh
-```
-
-## Kaku proxy
-
-To capture Kaku usage precisely, run a local OpenAI-compatible proxy in front
-of your real provider:
-
-```bash
-tokstat serve-proxy \
-  --host 127.0.0.1 \
-  --port 8765 \
-  --upstream-base-url https://api.vivgrid.com/v1 \
-  --timezone Asia/Shanghai
-```
-
-Then point Kaku to the local proxy:
-
-```toml
-base_url = "http://127.0.0.1:8765"
-```
-
-The proxy forwards requests and records token usage from upstream responses.
 
 ## Recommended first release framing
 
@@ -252,6 +265,13 @@ TokLedger should be presented as:
 ## Publish notes
 
 Repository planning and release packaging notes live in:
+
+- `docs/PRODUCT_BRIEF.md`
+- `docs/POSITIONING_AND_ROADMAP.md`
+- `docs/POSITIONING_AND_ROADMAP.zh-CN.md`
+- `docs/GITHUB_PUBLISH_PLAN.md`
+
+## Further reading
 
 - `docs/PRODUCT_BRIEF.md`
 - `docs/POSITIONING_AND_ROADMAP.md`
