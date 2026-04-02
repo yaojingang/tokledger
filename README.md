@@ -72,6 +72,7 @@ Current source behavior:
 - Daily and multi-day summaries with grouped tables and trend charts
 - Model, terminal, source, and client coverage breakdowns
 - Local pricing overrides and estimated API cost views
+- Budget tracking for today, last 7 days, and month-to-date
 - Automatic scan and daily report support via `launchd`
 - Fast operator UX with `tok`, inline hints, autosuggest, and completion
 
@@ -102,6 +103,7 @@ tok help
 tok setup
 tok doctor
 tok pricing
+tok budget
 ```
 
 2. See your first report:
@@ -126,6 +128,7 @@ Use the guided setup command if you want one place to inspect or apply the commo
 tok setup
 tok setup --install-launchd --scan-mode codex
 tok setup --enable-kaku-proxy --install-launchd --kaku-upstream-base-url https://api.vivgrid.com/v1
+tok budget init
 ```
 
 ### Manual scanning
@@ -223,6 +226,7 @@ tok help
 tok setup
 tok doctor
 tok pricing
+tok budget
 tok today
 tok last 7
 tok clients month
@@ -244,6 +248,8 @@ Cost notes:
 - if `~/.tokkit/pricing.json` exists, TokKit merges it over the built-in table
 - legacy `~/.tokstat/pricing.json` continues to work if you are still on the old home directory
 - `tok pricing` marks every row as `built-in` or `override`
+- `tok budget` compares today, last 7 days, and month-to-date spend against your local budget file
+- `tok budget init` creates a starter `~/.tokkit/budget.json`
 - `tok doctor` summarizes local setup, launchd automation, and client coverage in one report
 - `tok setup` can apply common local steps such as home migration, Kaku proxy configuration, and launchd install
 - `Credits` remains separate for sources like Warp that expose vendor credits

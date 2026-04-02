@@ -67,6 +67,7 @@ TokKit 重点强化的是：
 - 支持日报、多日报表格和趋势图
 - 支持模型、终端、来源、客户端覆盖率分析
 - 支持本地价格覆盖和估算成本视图
+- 支持查看今天、最近 7 天和本月累计的预算状态
 - 支持通过 `launchd` 自动扫描和自动日报
 - 支持 `tok`、灰色提示、自动补全等终端体验增强
 
@@ -102,6 +103,7 @@ tok help
 tok setup
 tok doctor
 tok pricing
+tok budget
 ```
 
 2. 直接看第一份报表：
@@ -126,6 +128,7 @@ tokkit report-range --last 7 --timezone Asia/Shanghai
 tok setup
 tok setup --install-launchd --scan-mode codex
 tok setup --enable-kaku-proxy --install-launchd --kaku-upstream-base-url https://api.vivgrid.com/v1
+tok budget init
 ```
 
 ### 手动扫描
@@ -226,6 +229,7 @@ tok help
 tok setup
 tok doctor
 tok pricing
+tok budget
 tok today
 tok last 7
 tok clients month
@@ -246,6 +250,8 @@ TOK_AUTO_SCAN_TARGET=codex tok last 7
 - 如果存在 `~/.tokkit/pricing.json`，TokKit 会在内置价格表之上做覆盖
 - 如果你还在使用旧目录，`~/.tokstat/pricing.json` 也会继续兼容
 - `tok pricing` 会标出每一条价格来自 `built-in` 还是 `override`
+- `tok budget` 会把今天、最近 7 天和本月累计的消耗与你的本地预算做对比
+- `tok budget init` 会生成一份 `~/.tokkit/budget.json` 模板
 - `tok doctor` 会集中展示本地配置、自动化状态和客户端覆盖率
 - `tok setup` 可以顺手执行常见本地配置，比如迁移 home、切 Kaku proxy、安装 launchd
 - `Credits` 会继续保留给 Warp 这类直接提供 credits 的来源

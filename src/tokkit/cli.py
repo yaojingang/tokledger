@@ -13,6 +13,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Iterable
 
+from .budget import resolve_budget_config, write_budget_template
 from .clients import CLIENT_DEFINITIONS, detect_installed_clients, logical_client_for_usage_row
 from .db import connect_db
 from .ingest_codebuddy import scan_codebuddy
@@ -115,6 +116,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     pricing_cmd = subparsers.add_parser("pricing", help="Show the local pricing profiles used for cost estimation.")
     pricing_cmd.add_argument("--json", action="store_true")
+
+    budget_cmd = subparsers.add_parser("budget", help="Show or initialize local cost and credits budgets.")
+    budget_cmd.add_argument("--json", action="store_true")
+    budget_subparsers = budget_cmd.add_subparsers(dest="budget_command", required=False)
+    budget_init_cmd = budget_subparsers.add_parser("init", help="Write a starter budget.json file.")
+    budget_init_cmd.add_argument("--force", action="store_true")
 
     doctor_cmd = subparsers.add_parser("doctor", help="Inspect local setup, coverage, and likely configuration issues.")
     doctor_cmd.add_argument("--json", action="store_true")
@@ -229,6 +236,14 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.command == "pricing":
             print(render_pricing_report(json_mode=args.json))
+            return 0
+
+        if args.command == "budget":
+            if args.budget_command == "init":
+                path = write_budget_template(force=args.force)
+                print(f"wrote budget template to {path}")
+                return 0
+            print(render_budget_report(conn, tz, json_mode=args.json))
             return 0
 
         if args.command == "doctor":
@@ -881,6 +896,87 @@ def render_pricing_report(*, json_mode: bool) -> str:
     )
 
 
+def render_budget_report(conn: sqlite3.Connection, tz, *, json_mode: bool) -> str:
+    resolution = resolve_budget_config()
+    today = today_string(tz)
+    week_start = _shift_date(today, -6)
+    month_start = _month_start(today)
+    windows = [
+        ("Today", today, today, resolution.config.daily_est_usd, resolution.config.daily_credits),
+        ("Last 7 Days", week_start, today, resolution.config.weekly_est_usd, resolution.config.weekly_credits),
+        ("Month to Date", month_start, today, resolution.config.monthly_est_usd, resolution.config.monthly_credits),
+    ]
+
+    window_rows = [
+        _budget_window_row(
+            conn,
+            label=label,
+            start_date=start_date,
+            end_date=end_date,
+            est_budget=est_budget,
+            credits_budget=credits_budget,
+        )
+        for label, start_date, end_date, est_budget, credits_budget in windows
+    ]
+
+    payload = {
+        "budget_path": str(resolution.path),
+        "budget_exists": resolution.exists,
+        "budget_loaded": resolution.loaded,
+        "budget_error": resolution.error,
+        "currency": resolution.config.currency,
+        "windows": window_rows,
+    }
+
+    if json_mode:
+        return json.dumps(payload, ensure_ascii=False, indent=2)
+
+    lines = [
+        "TokKit budget",
+        "",
+        f"Budget file: {resolution.path} ({'loaded' if resolution.loaded else 'not loaded' if resolution.exists else 'missing'})",
+    ]
+    if resolution.error:
+        lines.append(f"Budget error: {resolution.error}")
+    if not resolution.exists:
+        lines.append("Run `tok budget init` to create a starter budget file.")
+
+    lines.extend(
+        [
+            "",
+            _render_table(
+                headers=[
+                    "Window",
+                    "Total",
+                    "Est.$",
+                    "Budget $",
+                    "USD %",
+                    "Credits",
+                    "Budget Credits",
+                    "Credits %",
+                    "Status",
+                ],
+                rows=[
+                    [
+                        row["window"],
+                        format_int(row["total_tokens"]),
+                        format_float(row["estimated_cost_usd"]),
+                        format_float(row["est_budget"]),
+                        row["est_pct_label"],
+                        format_float(row["credits"]),
+                        format_float(row["credits_budget"]),
+                        row["credits_pct_label"],
+                        row["status"],
+                    ]
+                    for row in window_rows
+                ],
+                right_align={1, 2, 3, 5, 6},
+            ),
+        ]
+    )
+    return "\n".join(lines)
+
+
 def render_doctor_report(conn: sqlite3.Connection, db_path: Path, tz, *, json_mode: bool) -> str:
     pricing_resolution = resolve_price_book()
     installed_map = detect_installed_clients()
@@ -1291,6 +1387,68 @@ def _detect_launchd_status() -> dict[str, list[str]]:
     return labels
 
 
+def _budget_window_row(
+    conn: sqlite3.Connection,
+    *,
+    label: str,
+    start_date: str,
+    end_date: str,
+    est_budget: float | None,
+    credits_budget: float | None,
+) -> dict[str, object]:
+    totals = conn.execute(
+        """
+        SELECT
+            COALESCE(SUM(total_tokens), 0) AS total_tokens,
+            COALESCE(SUM(credits), 0.0) AS credits
+        FROM usage_records
+        WHERE local_date >= ? AND local_date <= ?
+        """,
+        (start_date, end_date),
+    ).fetchone()
+    detailed_rows = _enrich_usage_rows(
+        conn.execute(
+            """
+            SELECT
+                app,
+                source,
+                measurement_method,
+                COALESCE(model, '') AS model,
+                COALESCE(json_extract(metadata_json, '$.model_provider'), '') AS model_provider,
+                SUM(input_tokens) AS input_tokens,
+                SUM(output_tokens) AS output_tokens,
+                SUM(cached_input_tokens) AS cached_input_tokens,
+                SUM(reasoning_tokens) AS reasoning_tokens,
+                COALESCE(SUM(total_tokens), 0) AS total_tokens,
+                COALESCE(SUM(credits), 0.0) AS credits,
+                COUNT(*) AS records
+            FROM usage_records
+            WHERE local_date >= ? AND local_date <= ?
+            GROUP BY app, source, measurement_method, model, model_provider
+            """,
+            (start_date, end_date),
+        ).fetchall()
+    )
+    estimated_cost = _sum_estimated_cost(detailed_rows)
+    est_pct = _ratio(estimated_cost, est_budget)
+    credits_pct = _ratio(float(totals["credits"]), credits_budget)
+    return {
+        "window": label,
+        "start_date": start_date,
+        "end_date": end_date,
+        "total_tokens": int(totals["total_tokens"]),
+        "estimated_cost_usd": estimated_cost,
+        "est_budget": est_budget,
+        "est_pct": est_pct,
+        "est_pct_label": _format_ratio(est_pct),
+        "credits": round(float(totals["credits"]), 8),
+        "credits_budget": credits_budget,
+        "credits_pct": credits_pct,
+        "credits_pct_label": _format_ratio(credits_pct),
+        "status": _budget_status(est_pct, credits_pct),
+    }
+
+
 def _read_launchd_env(label: str) -> dict[str, str]:
     plist_path = Path.home() / "Library/LaunchAgents" / f"{label}.plist"
     if not plist_path.exists():
@@ -1468,6 +1626,43 @@ def _build_setup_recommendations(
         recommendations.append("Optional: create `~/.tokkit/pricing.json` if you want local pricing overrides for `Est.$`.")
 
     return recommendations
+
+
+def _shift_date(raw_date: str, days: int) -> str:
+    from datetime import date
+
+    return (date.fromisoformat(raw_date) + timedelta(days=days)).isoformat()
+
+
+def _month_start(raw_date: str) -> str:
+    from datetime import date
+
+    value = date.fromisoformat(raw_date)
+    return value.replace(day=1).isoformat()
+
+
+def _ratio(value: float | None, budget: float | None) -> float | None:
+    if value is None or budget is None or budget <= 0:
+        return None
+    return value / budget
+
+
+def _format_ratio(value: float | None) -> str:
+    if value is None:
+        return "-"
+    return f"{value * 100:.1f}%"
+
+
+def _budget_status(est_pct: float | None, credits_pct: float | None) -> str:
+    ratios = [ratio for ratio in (est_pct, credits_pct) if ratio is not None]
+    if not ratios:
+        return "track"
+    highest = max(ratios)
+    if highest > 1.0:
+        return "over"
+    if highest >= 0.8:
+        return "watch"
+    return "ok"
 
 
 def _doctor_action_for_client(row: dict[str, object]) -> str:

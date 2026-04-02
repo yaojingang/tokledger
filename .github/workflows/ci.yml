@@ -35,6 +35,7 @@ jobs:
           tok setup >/dev/null
           tok doctor >/dev/null
           tok pricing >/dev/null
+          tok budget >/dev/null
           tokkit --help >/dev/null
           tokstat --help >/dev/null
           python -m tokkit.cli --help >/dev/null

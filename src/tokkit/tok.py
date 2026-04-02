@@ -26,6 +26,7 @@ Reports / 报表:
   tok month                 Show last 30 days / 查看最近 30 天报表
   tok doctor                Inspect local setup and client coverage / 检查本地配置和客户端覆盖情况
   tok setup                 Inspect or apply common setup steps / 检查或执行常见安装配置步骤
+  tok budget                Show budget status for today/week/month / 查看今天、本周、本月预算状态
 
 Client coverage / 客户端汇总:
   tok clients               Show today's client coverage report / 查看今天的客户端汇总
@@ -57,6 +58,11 @@ Pricing / 定价:
   tok pricing               Show local pricing profiles / 查看本地价格档位
                             Marks built-in vs override / 标明 built-in 或 override 来源
   tok pricing json          Show pricing profiles as JSON / 以 JSON 输出价格档位
+
+Budget / 预算:
+  tok budget                Show current budget status / 查看当前预算状态
+  tok budget json           Show budget status as JSON / 以 JSON 输出预算状态
+  tok budget init           Create a starter budget file / 创建预算模板文件
 
 Auto scan / 自动扫描:
   report commands auto-scan before rendering / 报表命令会先自动扫描再输出
@@ -94,6 +100,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_json_command(args[1:])
     if command == "pricing":
         return _run_pricing_command(args[1:])
+    if command == "budget":
+        return _run_budget_command(args[1:])
     if command == "doctor":
         return _run_doctor_command(args[1:])
     if command == "setup":
@@ -177,6 +185,17 @@ def _run_pricing_command(args: list[str]) -> int:
     if args and args[0] == "json":
         return _run_tokkit(["pricing", "--json"])
     return _run_tokkit(["pricing"])
+
+
+def _run_budget_command(args: list[str]) -> int:
+    if args and args[0] == "init":
+        command = ["budget", "init"]
+        if len(args) > 1 and args[1] == "--force":
+            command.append("--force")
+        return _run_tokkit(command)
+    if args and args[0] == "json":
+        return _run_report(["budget", "--json"])
+    return _run_report(["budget"])
 
 
 def _run_doctor_command(args: list[str]) -> int:

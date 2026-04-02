@@ -15,6 +15,7 @@ Local AI token ledger for desktop coding tools.
 - `tok` helper flow for Kaku and zsh users, including inline hints, autosuggest, and completion
 - `tok doctor` for one-shot local setup, automation, and client-coverage diagnostics
 - `tok setup` for guided onboarding and common local setup actions
+- `tok budget` for local cost budgets and windowed budget status checks
 
 ### What is included
 
@@ -43,6 +44,7 @@ Local AI token ledger for desktop coding tools.
 - 为 Kaku 和 zsh 用户提供 `tok` 快捷流，包括灰色提示、自动建议和补全
 - 提供 `tok doctor`，一条命令检查本地配置、自动化状态和客户端覆盖率
 - 提供 `tok setup`，用于引导式接入和常见本地配置动作
+- 提供 `tok budget`，用于本地预算配置和按窗口查看预算状态
 
 ### 本次发布包含
 
