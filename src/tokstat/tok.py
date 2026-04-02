@@ -49,6 +49,10 @@ Files / 文件:
   tok files                 List generated daily report files / 列出已生成的日报文件
   tok open                  Open the report directory / 打开报表目录
 
+Pricing / 定价:
+  tok pricing               Show local pricing profiles / 查看本地价格档位
+  tok pricing json          Show pricing profiles as JSON / 以 JSON 输出价格档位
+
 Auto scan / 自动扫描:
   report commands auto-scan before rendering / 报表命令会先自动扫描再输出
   TOK_AUTO_SCAN_BEFORE_REPORTS=0               disable auto scan / 关闭自动扫描
@@ -83,6 +87,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_clients_command(args[1:])
     if command == "json":
         return _run_json_command(args[1:])
+    if command == "pricing":
+        return _run_pricing_command(args[1:])
     if command == "files":
         return _run_files_command()
     if command == "open":
@@ -156,6 +162,12 @@ def _run_files_command() -> int:
         print(f"tok: report directory not found: {report_dir}", file=sys.stderr)
         return 1
     return subprocess.run(["ls", "-lt", str(report_dir)], check=False).returncode
+
+
+def _run_pricing_command(args: list[str]) -> int:
+    if args and args[0] == "json":
+        return _run_tokstat(["pricing", "--json"])
+    return _run_tokstat(["pricing"])
 
 
 def _run_report(args: list[str]) -> int:

@@ -13,7 +13,7 @@ from .db import connect_db
 from .ingest_codebuddy import scan_codebuddy
 from .ingest_codex import scan_codex
 from .ingest_warp import scan_warp
-from .pricing import estimate_cost_usd, normalize_model_display
+from .pricing import estimate_cost_usd, iter_price_book, normalize_model_display
 from .proxy import ProxyConfig, serve_proxy
 from .utils import DEFAULT_DB_PATH, format_float, format_int, get_timezone, today_string
 
@@ -107,6 +107,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Number of days to include instead of a single date.",
     )
     clients_cmd.add_argument("--json", action="store_true")
+
+    pricing_cmd = subparsers.add_parser("pricing", help="Show the local pricing profiles used for cost estimation.")
+    pricing_cmd.add_argument("--json", action="store_true")
 
     proxy_cmd = subparsers.add_parser("serve-proxy", help="Run an OpenAI-compatible proxy for Kaku Assistant.")
     proxy_cmd.add_argument("--host", default="127.0.0.1")
@@ -203,6 +206,10 @@ def main(argv: list[str] | None = None) -> int:
                 json_mode=args.json,
             )
             print(rendered)
+            return 0
+
+        if args.command == "pricing":
+            print(render_pricing_report(json_mode=args.json))
             return 0
 
         parser.error(f"unsupported command: {args.command}")
@@ -786,6 +793,52 @@ def render_clients_report(
         ]
     )
     return "\n".join(lines)
+
+
+def render_pricing_report(*, json_mode: bool) -> str:
+    rows = [
+        {
+            "model": model,
+            "input_per_million": pricing.input_per_million,
+            "cached_input_per_million": pricing.cached_input_per_million,
+            "output_per_million": pricing.output_per_million,
+        }
+        for model, pricing in iter_price_book()
+    ]
+    if json_mode:
+        return json.dumps(
+            {
+                "profiles": rows,
+                "notes": {
+                    "estimate_column": "Est.$ is a local estimate, not vendor billing.",
+                    "unit": "USD per 1M tokens",
+                },
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+
+    return "\n".join(
+        [
+            "Pricing profiles for Est.$",
+            "",
+            "Local estimate only. Unit: USD per 1M tokens.",
+            "",
+            _render_table(
+                headers=["Model", "Input $/1M", "Cached $/1M", "Output $/1M"],
+                rows=[
+                    [
+                        row["model"],
+                        format_float(row["input_per_million"], precision=3),
+                        format_float(row["cached_input_per_million"], precision=3),
+                        format_float(row["output_per_million"], precision=3),
+                    ]
+                    for row in rows
+                ],
+                right_align={1, 2, 3},
+            ),
+        ]
+    )
 
 
 def _client_report_window(*, target_date: str | None, last_days: int | None, tz) -> tuple[str, str, tuple[str, ...]]:

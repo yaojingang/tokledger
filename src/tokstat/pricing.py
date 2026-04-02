@@ -40,6 +40,10 @@ PRICE_BOOK: dict[str, ModelPrice] = {
 }
 
 
+def iter_price_book() -> list[tuple[str, ModelPrice]]:
+    return list(PRICE_BOOK.items())
+
+
 def normalize_model_display(model: str | None, provider: str | None = None) -> str:
     model_value = (model or "").strip()
     provider_value = (provider or "").strip()

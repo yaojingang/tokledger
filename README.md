@@ -144,6 +144,7 @@ If you use the optional `tok` shortcut, common flows become:
 
 ```bash
 tok help
+tok pricing
 tok today
 tok last 7
 tok clients month
@@ -161,8 +162,9 @@ TOK_AUTO_SCAN_TARGET=codex tok last 7
 Cost notes:
 
 - `Est.$` is a local API cost estimate based on built-in model pricing profiles
+- `tok pricing` shows the current built-in price table used by `Est.$`
 - `Credits` remains separate for sources like Warp that expose vendor credits
-- partial sources may show `Input/Output/Cached/Reasoning` as `0` and `Est.$` as `-`
+- partial sources may show `Input/Output/Cached/Reasoning` as `-` and `Est.$` as `-`
   when only conversation-level totals are available
 
 ## Automatic mode on macOS
