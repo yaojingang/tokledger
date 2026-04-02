@@ -14,6 +14,7 @@ Local AI token ledger for desktop coding tools.
 - macOS `launchd` automation for hourly scans and daily report generation
 - `tok` helper flow for Kaku and zsh users, including inline hints, autosuggest, and completion
 - `tok doctor` for one-shot local setup, automation, and client-coverage diagnostics
+- `tok setup` for guided onboarding and common local setup actions
 
 ### What is included
 
@@ -41,6 +42,7 @@ Local AI token ledger for desktop coding tools.
 - 支持 macOS `launchd` 自动化，每小时扫描、每天自动生成日报
 - 为 Kaku 和 zsh 用户提供 `tok` 快捷流，包括灰色提示、自动建议和补全
 - 提供 `tok doctor`，一条命令检查本地配置、自动化状态和客户端覆盖率
+- 提供 `tok setup`，用于引导式接入和常见本地配置动作
 
 ### 本次发布包含
 

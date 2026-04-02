@@ -2,8 +2,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import plistlib
+import re
 import sqlite3
+import subprocess
 import sys
+import tomllib
 from datetime import timedelta
 from pathlib import Path
 from typing import Iterable
@@ -15,7 +20,7 @@ from .ingest_codex import scan_codex
 from .ingest_warp import scan_warp
 from .pricing import estimate_cost_usd, iter_price_book, normalize_model_display, resolve_price_book
 from .proxy import ProxyConfig, serve_proxy
-from .utils import DEFAULT_DB_PATH, default_log_dir, default_report_dir, format_float, format_int, get_timezone, resolve_app_home, today_string
+from .utils import DEFAULT_DB_PATH, default_db_path, default_log_dir, default_report_dir, format_float, format_int, get_timezone, resolve_app_home, today_string
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -114,6 +119,14 @@ def build_parser() -> argparse.ArgumentParser:
     doctor_cmd = subparsers.add_parser("doctor", help="Inspect local setup, coverage, and likely configuration issues.")
     doctor_cmd.add_argument("--json", action="store_true")
 
+    setup_cmd = subparsers.add_parser("setup", help="Inspect or apply common local setup steps.")
+    setup_cmd.add_argument("--json", action="store_true")
+    setup_cmd.add_argument("--install-launchd", action="store_true")
+    setup_cmd.add_argument("--scan-mode", choices=("all", "codex"), default="codex")
+    setup_cmd.add_argument("--enable-kaku-proxy", action="store_true")
+    setup_cmd.add_argument("--kaku-upstream-base-url", default=None)
+    setup_cmd.add_argument("--migrate-home", action="store_true")
+
     proxy_cmd = subparsers.add_parser("serve-proxy", help="Run an OpenAI-compatible proxy for Kaku Assistant.")
     proxy_cmd.add_argument("--host", default="127.0.0.1")
     proxy_cmd.add_argument("--port", type=int, default=8765)
@@ -140,6 +153,9 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         return 0
+
+    if args.command == "setup":
+        return run_setup(args, tz)
 
     conn = connect_db(args.db)
     try:
@@ -996,6 +1012,165 @@ def render_doctor_report(conn: sqlite3.Connection, db_path: Path, tz, *, json_mo
     return "\n".join(lines)
 
 
+def run_setup(args, tz) -> int:
+    action_logs: list[str] = []
+
+    try:
+        if args.migrate_home:
+            action_logs.append(_migrate_home_directory())
+
+        kaku_state_before = _read_kaku_setup_state()
+        upstream_url = args.kaku_upstream_base_url or _infer_kaku_upstream_base_url(kaku_state_before)
+
+        if args.enable_kaku_proxy:
+            action_logs.append(_configure_kaku_proxy(kaku_state_before["config_path"]))
+
+        if args.install_launchd:
+            wants_kaku_proxy = args.enable_kaku_proxy or bool(kaku_state_before["proxy_configured"])
+            if wants_kaku_proxy and not upstream_url:
+                raise RuntimeError(
+                    "Kaku is configured for the local proxy, but no upstream base URL is known. "
+                    "Pass --kaku-upstream-base-url <url>."
+                )
+            should_install_proxy = wants_kaku_proxy and bool(upstream_url)
+            action_logs.append(
+                _install_launchd_jobs(
+                    scan_mode=args.scan_mode,
+                    install_kaku_proxy=should_install_proxy,
+                    kaku_upstream_base_url=upstream_url,
+                )
+            )
+    except RuntimeError as exc:
+        print(f"tokkit setup: {exc}", file=sys.stderr)
+        return 1
+
+    effective_db_path = default_db_path() if args.db == DEFAULT_DB_PATH else args.db
+    conn = connect_db(effective_db_path)
+    try:
+        rendered = render_setup_report(
+            conn,
+            effective_db_path,
+            tz,
+            json_mode=args.json,
+            action_logs=action_logs,
+        )
+    finally:
+        conn.close()
+
+    print(rendered)
+    return 0
+
+
+def render_setup_report(
+    conn: sqlite3.Connection,
+    db_path: Path,
+    tz,
+    *,
+    json_mode: bool,
+    action_logs: list[str] | None = None,
+) -> str:
+    action_logs = action_logs or []
+    app_home = resolve_app_home()
+    report_dir = default_report_dir()
+    log_dir = default_log_dir()
+    pricing_resolution = resolve_price_book()
+    launchd_status = _detect_launchd_status()
+    launchd_env = _read_launchd_env("com.laoyao.tokkit.scan")
+    proxy_launchd_env = _read_launchd_env("com.laoyao.tokkit.kaku-proxy")
+    kaku_state = _read_kaku_setup_state()
+    usage_records = conn.execute("SELECT COUNT(*) AS count FROM usage_records").fetchone()["count"]
+
+    recommendations = _build_setup_recommendations(
+        app_home=app_home,
+        launchd_status=launchd_status,
+        kaku_state=kaku_state,
+        scan_mode=launchd_env.get("TOKKIT_SCAN_MODE", ""),
+        pricing_override_exists=pricing_resolution.override_path.exists(),
+        proxy_upstream=proxy_launchd_env.get("TOKKIT_KAKU_UPSTREAM_BASE_URL", ""),
+    )
+
+    payload = {
+        "actions": action_logs,
+        "app_home": str(app_home),
+        "db_path": str(db_path),
+        "report_dir": str(report_dir),
+        "log_dir": str(log_dir),
+        "timezone": str(tz),
+        "usage_records": usage_records,
+        "launchd": {
+            "installed": bool(launchd_status["tokkit_labels"]),
+            "labels": launchd_status["tokkit_labels"],
+            "scan_mode": launchd_env.get("TOKKIT_SCAN_MODE"),
+            "proxy_upstream_base_url": proxy_launchd_env.get("TOKKIT_KAKU_UPSTREAM_BASE_URL"),
+        },
+        "kaku": {
+            "config_path": str(kaku_state["config_path"]),
+            "config_exists": kaku_state["config_exists"],
+            "enabled": kaku_state["enabled"],
+            "model": kaku_state["model"],
+            "base_url": kaku_state["base_url"],
+            "proxy_configured": kaku_state["proxy_configured"],
+        },
+        "pricing": {
+            "override_path": str(pricing_resolution.override_path),
+            "override_exists": pricing_resolution.override_path.exists(),
+            "override_loaded": pricing_resolution.override_loaded,
+        },
+        "recommendations": recommendations,
+    }
+
+    if json_mode:
+        return json.dumps(payload, ensure_ascii=False, indent=2)
+
+    lines: list[str] = ["TokKit setup", ""]
+
+    if action_logs:
+        lines.extend(
+            [
+                "Actions applied:",
+                *[f"- {item}" for item in action_logs],
+                "",
+            ]
+        )
+
+    lines.extend(
+        [
+            "Current state:",
+            _render_table(
+                headers=["Item", "Value"],
+                rows=[
+                    ["App home", str(app_home)],
+                    ["Database", str(db_path)],
+                    ["Report dir", str(report_dir)],
+                    ["Log dir", str(log_dir)],
+                    ["Timezone", str(tz)],
+                    ["Usage records", str(usage_records)],
+                    ["Launchd installed", "yes" if launchd_status["tokkit_labels"] else "no"],
+                    ["Launchd scan mode", launchd_env.get("TOKKIT_SCAN_MODE", "-") or "-"],
+                    ["Kaku config", str(kaku_state["config_path"])],
+                    ["Kaku config exists", "yes" if kaku_state["config_exists"] else "no"],
+                    ["Kaku enabled", "yes" if kaku_state["enabled"] else "no"],
+                    ["Kaku model", kaku_state["model"] or "-"],
+                    ["Kaku base_url", kaku_state["base_url"] or "-"],
+                    ["Kaku proxy configured", "yes" if kaku_state["proxy_configured"] else "no"],
+                    ["Kaku upstream", proxy_launchd_env.get("TOKKIT_KAKU_UPSTREAM_BASE_URL", "-") or "-"],
+                    ["Pricing override", str(pricing_resolution.override_path)],
+                    ["Pricing override exists", "yes" if pricing_resolution.override_path.exists() else "no"],
+                ],
+            ),
+            "",
+            "Recommended next steps:",
+        ]
+    )
+
+    if recommendations:
+        lines.extend(f"{idx}. {item}" for idx, item in enumerate(recommendations, start=1))
+    else:
+        lines.append("1. Setup looks healthy. Use `tok doctor` for deeper diagnostics.")
+
+    return "\n".join(lines)
+
+
 def _client_report_window(*, target_date: str | None, last_days: int | None, tz) -> tuple[str, str, tuple[str, ...]]:
     if last_days is not None:
         end_date = today_string(tz)
@@ -1114,6 +1289,185 @@ def _detect_launchd_status() -> dict[str, list[str]]:
         if (launch_agents_dir / f"{label}.plist").exists():
             labels["legacy_tokstat_labels"].append(label)
     return labels
+
+
+def _read_launchd_env(label: str) -> dict[str, str]:
+    plist_path = Path.home() / "Library/LaunchAgents" / f"{label}.plist"
+    if not plist_path.exists():
+        return {}
+    with plist_path.open("rb") as handle:
+        payload = plistlib.load(handle)
+    environment = payload.get("EnvironmentVariables", {})
+    if not isinstance(environment, dict):
+        return {}
+    return {str(key): str(value) for key, value in environment.items()}
+
+
+def _read_kaku_setup_state() -> dict[str, object]:
+    config_path = Path.home() / ".config/kaku/assistant.toml"
+    state: dict[str, object] = {
+        "config_path": config_path,
+        "config_exists": config_path.exists(),
+        "enabled": False,
+        "model": "",
+        "base_url": "",
+        "proxy_configured": False,
+    }
+    if not config_path.exists():
+        return state
+
+    payload = tomllib.loads(config_path.read_text(encoding="utf-8"))
+    base_url = str(payload.get("base_url") or "")
+    state["enabled"] = bool(payload.get("enabled", False))
+    state["model"] = str(payload.get("model") or "")
+    state["base_url"] = base_url
+    state["proxy_configured"] = _is_local_proxy_url(base_url)
+    return state
+
+
+def _is_local_proxy_url(url: str) -> bool:
+    normalized = url.strip().lower()
+    return normalized.startswith("http://127.0.0.1:8765") or normalized.startswith("http://localhost:8765")
+
+
+def _infer_kaku_upstream_base_url(kaku_state: dict[str, object]) -> str | None:
+    base_url = str(kaku_state.get("base_url") or "")
+    if base_url and not _is_local_proxy_url(base_url):
+        return base_url
+
+    launchd_env = _read_launchd_env("com.laoyao.tokkit.kaku-proxy")
+    upstream = launchd_env.get("TOKKIT_KAKU_UPSTREAM_BASE_URL")
+    if upstream:
+        return upstream
+    return None
+
+
+def _configure_kaku_proxy(config_path: Path) -> str:
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    if not config_path.exists():
+        config_path.write_text(
+            "\n".join(
+                [
+                    "# Kaku Assistant configuration",
+                    "enabled = true",
+                    'model = "gpt-5.4"',
+                    'base_url = "http://127.0.0.1:8765"',
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        return f"Wrote {config_path} with TokKit proxy base_url."
+
+    original = config_path.read_text(encoding="utf-8")
+    if re.search(r'(?m)^\s*base_url\s*=\s*"http://127\.0\.0\.1:8765"\s*$', original):
+        return f"Kaku already points to the TokKit proxy in {config_path}."
+
+    if re.search(r"(?m)^\s*base_url\s*=", original):
+        updated = re.sub(
+            r'(?m)^(\s*base_url\s*=\s*).*$',
+            r'\1"http://127.0.0.1:8765"',
+            original,
+            count=1,
+        )
+    else:
+        suffix = "" if original.endswith("\n") else "\n"
+        updated = original + suffix + 'base_url = "http://127.0.0.1:8765"\n'
+    config_path.write_text(updated, encoding="utf-8")
+    return f"Updated Kaku base_url to the TokKit proxy in {config_path}."
+
+
+def _migrate_home_directory() -> str:
+    modern = Path.home() / ".tokkit"
+    legacy = Path.home() / ".tokstat"
+
+    if modern.exists():
+        if legacy.is_symlink() and legacy.resolve() == modern.resolve():
+            return "TokKit home is already migrated to ~/.tokkit."
+        return "TokKit home already uses ~/.tokkit."
+
+    if not legacy.exists():
+        modern.mkdir(parents=True, exist_ok=True)
+        return "Created new TokKit home at ~/.tokkit."
+
+    legacy.rename(modern)
+    legacy.symlink_to(modern)
+    return "Moved ~/.tokstat to ~/.tokkit and kept ~/.tokstat as a compatibility symlink."
+
+
+def _install_launchd_jobs(*, scan_mode: str, install_kaku_proxy: bool, kaku_upstream_base_url: str | None) -> str:
+    script_path = Path(__file__).resolve().parents[2] / "scripts/install_launchd.sh"
+    if not script_path.exists():
+        raise RuntimeError(f"Launchd installer not found: {script_path}")
+
+    if install_kaku_proxy and not kaku_upstream_base_url:
+        raise RuntimeError("Kaku proxy install requires --kaku-upstream-base-url or an existing upstream URL.")
+
+    env = dict(os.environ)
+    env.setdefault("TOKKIT_HOME", str(resolve_app_home()))
+    env.setdefault("TOKKIT_DB_PATH", str(default_db_path()))
+    env.setdefault("TOKKIT_REPORT_DIR", str(default_report_dir()))
+    env.setdefault("TOKKIT_LOG_DIR", str(default_log_dir()))
+    env["TOKKIT_TIMEZONE"] = env.get("TOKKIT_TIMEZONE") or "Asia/Shanghai"
+    env["TOKKIT_SCAN_MODE"] = scan_mode
+    env["TOKKIT_INSTALL_KAKU_PROXY"] = "1" if install_kaku_proxy else "0"
+    if kaku_upstream_base_url:
+        env["TOKKIT_KAKU_UPSTREAM_BASE_URL"] = kaku_upstream_base_url
+
+    completed = subprocess.run(
+        [str(script_path)],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    if completed.returncode != 0:
+        output = (completed.stdout + completed.stderr).strip()
+        raise RuntimeError(output or "install_launchd.sh failed")
+
+    label = "Installed TokKit launchd automation"
+    if install_kaku_proxy:
+        label += " with the Kaku proxy."
+    else:
+        label += "."
+    return label
+
+
+def _build_setup_recommendations(
+    *,
+    app_home: Path,
+    launchd_status: dict[str, list[str]],
+    kaku_state: dict[str, object],
+    scan_mode: str,
+    pricing_override_exists: bool,
+    proxy_upstream: str,
+) -> list[str]:
+    recommendations: list[str] = []
+
+    if app_home.name == ".tokstat":
+        recommendations.append("Run `tok setup --migrate-home` to move your data directory to `~/.tokkit`.")
+
+    if not launchd_status["tokkit_labels"]:
+        recommendations.append("Run `tok setup --install-launchd --scan-mode codex` to enable hourly scans and daily reports.")
+    elif scan_mode:
+        recommendations.append(f"Automatic scans are installed and currently use scan mode `{scan_mode}`.")
+
+    if kaku_state["config_exists"] and not kaku_state["proxy_configured"]:
+        base_url = str(kaku_state["base_url"] or "")
+        if base_url:
+            recommendations.append(
+                "Run `tok setup --enable-kaku-proxy --install-launchd "
+                f"--kaku-upstream-base-url {base_url}` to route Kaku through the local TokKit proxy."
+            )
+        else:
+            recommendations.append("Run `tok setup --enable-kaku-proxy` to point Kaku at the local TokKit proxy.")
+    elif kaku_state["proxy_configured"] and not proxy_upstream:
+        recommendations.append("TokKit can see Kaku pointing at the local proxy, but the proxy upstream is unknown. Reinstall launchd with `tok setup --install-launchd --kaku-upstream-base-url <url>`.")
+
+    if not pricing_override_exists:
+        recommendations.append("Optional: create `~/.tokkit/pricing.json` if you want local pricing overrides for `Est.$`.")
+
+    return recommendations
 
 
 def _doctor_action_for_client(row: dict[str, object]) -> str:

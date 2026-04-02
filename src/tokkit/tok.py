@@ -25,6 +25,7 @@ Reports / 报表:
   tok week                  Show last 7 days / 查看最近 7 天报表
   tok month                 Show last 30 days / 查看最近 30 天报表
   tok doctor                Inspect local setup and client coverage / 检查本地配置和客户端覆盖情况
+  tok setup                 Inspect or apply common setup steps / 检查或执行常见安装配置步骤
 
 Client coverage / 客户端汇总:
   tok clients               Show today's client coverage report / 查看今天的客户端汇总
@@ -95,6 +96,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_pricing_command(args[1:])
     if command == "doctor":
         return _run_doctor_command(args[1:])
+    if command == "setup":
+        return _run_setup_command(args[1:])
     if command == "files":
         return _run_files_command()
     if command == "open":
@@ -180,6 +183,27 @@ def _run_doctor_command(args: list[str]) -> int:
     if args and args[0] == "json":
         return _run_tokkit(["doctor", "--json"])
     return _run_tokkit(["doctor"])
+
+
+def _run_setup_command(args: list[str]) -> int:
+    command = ["setup"]
+    idx = 0
+    while idx < len(args):
+        arg = args[idx]
+        if arg == "json":
+            command.append("--json")
+        elif arg in {"--json", "--install-launchd", "--enable-kaku-proxy", "--migrate-home"}:
+            command.append(arg)
+        elif arg == "--scan-mode":
+            command.extend([arg, args[idx + 1]])
+            idx += 1
+        elif arg == "--kaku-upstream-base-url":
+            command.extend([arg, args[idx + 1]])
+            idx += 1
+        else:
+            command.append(arg)
+        idx += 1
+    return _run_tokkit(command)
 
 
 def _run_report(args: list[str]) -> int:

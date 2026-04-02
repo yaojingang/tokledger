@@ -32,6 +32,7 @@ TokKit 重点强化的是：
 - 低接入成本：能读本地日志就不要求埋点，只有需要精确 usage 时才走代理
 - 适合个人使用：日报、趋势、定价、灰色提示、自动补全都直接在终端完成
 - 本地诊断直接可用：`tok doctor` 会把配置状态、覆盖率和下一步动作集中说明
+- 引导式安装可直接执行：`tok setup` 会检查当前状态，并可顺手完成常见配置动作
 
 ## 当前支持的数据来源
 
@@ -98,6 +99,7 @@ python3 -m pip install -e .
 
 ```bash
 tok help
+tok setup
 tok doctor
 tok pricing
 ```
@@ -117,6 +119,14 @@ tokkit report-range --last 7 --timezone Asia/Shanghai
 ```
 
 ## 可选接入路径
+
+如果你希望把常见安装步骤收敛到一个命令里，可以直接用：
+
+```bash
+tok setup
+tok setup --install-launchd --scan-mode codex
+tok setup --enable-kaku-proxy --install-launchd --kaku-upstream-base-url https://api.vivgrid.com/v1
+```
 
 ### 手动扫描
 
@@ -213,6 +223,7 @@ tokkit report-clients --last 7 --timezone Asia/Shanghai
 
 ```bash
 tok help
+tok setup
 tok doctor
 tok pricing
 tok today
@@ -236,6 +247,7 @@ TOK_AUTO_SCAN_TARGET=codex tok last 7
 - 如果你还在使用旧目录，`~/.tokstat/pricing.json` 也会继续兼容
 - `tok pricing` 会标出每一条价格来自 `built-in` 还是 `override`
 - `tok doctor` 会集中展示本地配置、自动化状态和客户端覆盖率
+- `tok setup` 可以顺手执行常见本地配置，比如迁移 home、切 Kaku proxy、安装 launchd
 - `Credits` 会继续保留给 Warp 这类直接提供 credits 的来源
 - `partial` 来源如果拿不到方向拆分，`Input/Output/Cached/Reasoning` 会显示 `-`
 

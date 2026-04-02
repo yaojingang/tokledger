@@ -38,6 +38,7 @@ What TokKit emphasizes:
 - Personal operator workflow: daily reports, trends, pricing, shell
   autosuggest, and fast CLI output
 - Fast local diagnostics: `tok doctor` explains setup state, coverage, and likely next steps
+- Guided local onboarding: `tok setup` inspects the current machine state and can apply common setup steps
 
 ## Supported sources
 
@@ -98,6 +99,7 @@ to pick up the `tok` entry point.
 
 ```bash
 tok help
+tok setup
 tok doctor
 tok pricing
 ```
@@ -117,6 +119,14 @@ tokkit report-range --last 7 --timezone Asia/Shanghai
 ```
 
 ## Optional setup paths
+
+Use the guided setup command if you want one place to inspect or apply the common local steps:
+
+```bash
+tok setup
+tok setup --install-launchd --scan-mode codex
+tok setup --enable-kaku-proxy --install-launchd --kaku-upstream-base-url https://api.vivgrid.com/v1
+```
 
 ### Manual scanning
 
@@ -210,6 +220,7 @@ If you use the optional `tok` shortcut, common flows become:
 
 ```bash
 tok help
+tok setup
 tok doctor
 tok pricing
 tok today
@@ -234,6 +245,7 @@ Cost notes:
 - legacy `~/.tokstat/pricing.json` continues to work if you are still on the old home directory
 - `tok pricing` marks every row as `built-in` or `override`
 - `tok doctor` summarizes local setup, launchd automation, and client coverage in one report
+- `tok setup` can apply common local steps such as home migration, Kaku proxy configuration, and launchd install
 - `Credits` remains separate for sources like Warp that expose vendor credits
 - partial sources may show `Input/Output/Cached/Reasoning` as `-` and `Est.$` as `-`
   when only conversation-level totals are available
