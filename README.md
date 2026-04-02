@@ -37,6 +37,7 @@ What TokKit emphasizes:
   exact accounting needs request/response usage
 - Personal operator workflow: daily reports, trends, pricing, shell
   autosuggest, and fast CLI output
+- Fast local diagnostics: `tok doctor` explains setup state, coverage, and likely next steps
 
 ## Supported sources
 
@@ -97,6 +98,7 @@ to pick up the `tok` entry point.
 
 ```bash
 tok help
+tok doctor
 tok pricing
 ```
 
@@ -208,6 +210,7 @@ If you use the optional `tok` shortcut, common flows become:
 
 ```bash
 tok help
+tok doctor
 tok pricing
 tok today
 tok last 7
@@ -230,6 +233,7 @@ Cost notes:
 - if `~/.tokkit/pricing.json` exists, TokKit merges it over the built-in table
 - legacy `~/.tokstat/pricing.json` continues to work if you are still on the old home directory
 - `tok pricing` marks every row as `built-in` or `override`
+- `tok doctor` summarizes local setup, launchd automation, and client coverage in one report
 - `Credits` remains separate for sources like Warp that expose vendor credits
 - partial sources may show `Input/Output/Cached/Reasoning` as `-` and `Est.$` as `-`
   when only conversation-level totals are available

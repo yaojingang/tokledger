@@ -32,6 +32,7 @@ jobs:
       - name: Smoke test CLI
         run: |
           tok help >/dev/null
+          tok doctor >/dev/null
           tok pricing >/dev/null
           tokkit --help >/dev/null
           tokstat --help >/dev/null

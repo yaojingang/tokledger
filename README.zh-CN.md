@@ -31,6 +31,7 @@ TokKit 重点强化的是：
 - 面向 AI 编码工具：终端助手、桌面客户端、IDE 扩展、本地代理
 - 低接入成本：能读本地日志就不要求埋点，只有需要精确 usage 时才走代理
 - 适合个人使用：日报、趋势、定价、灰色提示、自动补全都直接在终端完成
+- 本地诊断直接可用：`tok doctor` 会把配置状态、覆盖率和下一步动作集中说明
 
 ## 当前支持的数据来源
 
@@ -97,6 +98,7 @@ python3 -m pip install -e .
 
 ```bash
 tok help
+tok doctor
 tok pricing
 ```
 
@@ -211,6 +213,7 @@ tokkit report-clients --last 7 --timezone Asia/Shanghai
 
 ```bash
 tok help
+tok doctor
 tok pricing
 tok today
 tok last 7
@@ -232,6 +235,7 @@ TOK_AUTO_SCAN_TARGET=codex tok last 7
 - 如果存在 `~/.tokkit/pricing.json`，TokKit 会在内置价格表之上做覆盖
 - 如果你还在使用旧目录，`~/.tokstat/pricing.json` 也会继续兼容
 - `tok pricing` 会标出每一条价格来自 `built-in` 还是 `override`
+- `tok doctor` 会集中展示本地配置、自动化状态和客户端覆盖率
 - `Credits` 会继续保留给 Warp 这类直接提供 credits 的来源
 - `partial` 来源如果拿不到方向拆分，`Input/Output/Cached/Reasoning` 会显示 `-`
 

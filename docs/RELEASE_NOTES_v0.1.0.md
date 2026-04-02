@@ -13,6 +13,7 @@ Local AI token ledger for desktop coding tools.
 - Explicit `exact`, `partial`, and `estimated` coverage instead of flattening everything into one misleading total
 - macOS `launchd` automation for hourly scans and daily report generation
 - `tok` helper flow for Kaku and zsh users, including inline hints, autosuggest, and completion
+- `tok doctor` for one-shot local setup, automation, and client-coverage diagnostics
 
 ### What is included
 
@@ -26,9 +27,9 @@ Local AI token ledger for desktop coding tools.
 
 ### Known limits
 
-- Codex local logs currently expose provider-level metadata but not an exact model name
 - Warp historical day splits are conversation-based, so older backfill is approximate by day
 - Some desktop clients are still untracked or only partially covered
+- `tok doctor` can explain current coverage, but it cannot create missing adapters automatically
 
 ## 中文
 
@@ -39,6 +40,7 @@ Local AI token ledger for desktop coding tools.
 - 明确区分 `exact`、`partial`、`estimated`，避免把不同精度的数据混成一个误导性的总数
 - 支持 macOS `launchd` 自动化，每小时扫描、每天自动生成日报
 - 为 Kaku 和 zsh 用户提供 `tok` 快捷流，包括灰色提示、自动建议和补全
+- 提供 `tok doctor`，一条命令检查本地配置、自动化状态和客户端覆盖率
 
 ### 本次发布包含
 
@@ -52,6 +54,6 @@ Local AI token ledger for desktop coding tools.
 
 ### 当前限制
 
-- Codex 本地日志目前只有 provider 级别信息，还没有稳定的精确模型名
 - Warp 的历史补扫以 conversation 为单位，所以旧数据按天拆分时是近似值
 - 部分桌面客户端仍然未接入，或者只有部分覆盖
+- `tok doctor` 能解释当前覆盖情况，但不会自动生成尚未实现的适配器

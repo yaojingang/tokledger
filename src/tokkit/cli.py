@@ -15,7 +15,7 @@ from .ingest_codex import scan_codex
 from .ingest_warp import scan_warp
 from .pricing import estimate_cost_usd, iter_price_book, normalize_model_display, resolve_price_book
 from .proxy import ProxyConfig, serve_proxy
-from .utils import DEFAULT_DB_PATH, format_float, format_int, get_timezone, today_string
+from .utils import DEFAULT_DB_PATH, default_log_dir, default_report_dir, format_float, format_int, get_timezone, resolve_app_home, today_string
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -110,6 +110,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     pricing_cmd = subparsers.add_parser("pricing", help="Show the local pricing profiles used for cost estimation.")
     pricing_cmd.add_argument("--json", action="store_true")
+
+    doctor_cmd = subparsers.add_parser("doctor", help="Inspect local setup, coverage, and likely configuration issues.")
+    doctor_cmd.add_argument("--json", action="store_true")
 
     proxy_cmd = subparsers.add_parser("serve-proxy", help="Run an OpenAI-compatible proxy for Kaku Assistant.")
     proxy_cmd.add_argument("--host", default="127.0.0.1")
@@ -210,6 +213,10 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.command == "pricing":
             print(render_pricing_report(json_mode=args.json))
+            return 0
+
+        if args.command == "doctor":
+            print(render_doctor_report(conn, args.db, tz, json_mode=args.json))
             return 0
 
         parser.error(f"unsupported command: {args.command}")
@@ -858,6 +865,137 @@ def render_pricing_report(*, json_mode: bool) -> str:
     )
 
 
+def render_doctor_report(conn: sqlite3.Connection, db_path: Path, tz, *, json_mode: bool) -> str:
+    pricing_resolution = resolve_price_book()
+    installed_map = detect_installed_clients()
+    source_rows = conn.execute(
+        """
+        SELECT
+            app,
+            source,
+            measurement_method,
+            COALESCE(SUM(total_tokens), 0) AS total_tokens,
+            COALESCE(SUM(credits), 0.0) AS credits,
+            COUNT(*) AS records,
+            MAX(started_at) AS last_seen
+        FROM usage_records
+        GROUP BY app, source, measurement_method
+        ORDER BY total_tokens DESC, credits DESC, app, source
+        """
+    ).fetchall()
+    by_client = _aggregate_client_rows(source_rows, installed_map)
+    total_records = conn.execute("SELECT COUNT(*) AS count FROM usage_records").fetchone()["count"]
+    latest_record = conn.execute("SELECT MAX(started_at) AS last_seen FROM usage_records").fetchone()["last_seen"]
+    app_home = resolve_app_home()
+    report_dir = default_report_dir()
+    log_dir = default_log_dir()
+    launchd_status = _detect_launchd_status()
+
+    config_payload = {
+        "app_home": str(app_home),
+        "db_path": str(db_path),
+        "db_exists": db_path.exists(),
+        "report_dir": str(report_dir),
+        "report_dir_exists": report_dir.exists(),
+        "log_dir": str(log_dir),
+        "log_dir_exists": log_dir.exists(),
+        "timezone": str(tz),
+        "pricing_override_path": str(pricing_resolution.override_path),
+        "pricing_override_loaded": pricing_resolution.override_loaded,
+        "pricing_override_error": pricing_resolution.override_error,
+        "legacy_home_in_use": ".tokstat" in str(db_path),
+        "usage_records": total_records,
+        "latest_record": latest_record,
+    }
+
+    launchd_payload = {
+        "tokkit_labels": launchd_status["tokkit_labels"],
+        "legacy_tokstat_labels": launchd_status["legacy_tokstat_labels"],
+        "installed": bool(launchd_status["tokkit_labels"]),
+    }
+
+    doctor_rows = [
+        {
+            "client": row["label"],
+            "installed": row["installed"],
+            "coverage": row["coverage"],
+            "records": row["records"],
+            "last_seen": row["last_seen"],
+            "notes": row["notes"],
+            "recommended_action": _doctor_action_for_client(row),
+        }
+        for row in by_client
+    ]
+
+    if json_mode:
+        return json.dumps(
+            {
+                "config": config_payload,
+                "launchd": launchd_payload,
+                "clients": doctor_rows,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+
+    lines = [
+        "TokKit doctor",
+        "",
+        "Configuration:",
+        _render_table(
+            headers=["Item", "Value"],
+            rows=[
+                ["App home", str(app_home)],
+                ["Database", str(db_path)],
+                ["Database exists", "yes" if db_path.exists() else "no"],
+                ["Report dir", str(report_dir)],
+                ["Report dir exists", "yes" if report_dir.exists() else "no"],
+                ["Log dir", str(log_dir)],
+                ["Log dir exists", "yes" if log_dir.exists() else "no"],
+                ["Timezone", str(tz)],
+                ["Pricing override", str(pricing_resolution.override_path)],
+                ["Override loaded", "yes" if pricing_resolution.override_loaded else "no"],
+                ["Legacy .tokstat home", "yes" if ".tokstat" in str(db_path) else "no"],
+                ["Usage records", str(total_records)],
+                ["Latest record", latest_record or "-"],
+            ],
+        ),
+        "",
+        "Automation:",
+        _render_table(
+            headers=["Item", "Value"],
+            rows=[
+                ["TokKit launchd labels", ", ".join(launchd_status["tokkit_labels"]) or "-"],
+                ["Legacy tokstat labels", ", ".join(launchd_status["legacy_tokstat_labels"]) or "-"],
+                ["Automatic mode installed", "yes" if launchd_status["tokkit_labels"] else "no"],
+            ],
+        ),
+        "",
+        "By client:",
+        _render_table(
+            headers=["Client", "Installed", "Coverage", "Records", "Last Seen", "Recommended Action", "Notes"],
+            rows=[
+                [
+                    row["client"],
+                    "yes" if row["installed"] else "no",
+                    row["coverage"],
+                    str(row["records"]),
+                    row["last_seen"] or "-",
+                    row["recommended_action"],
+                    row["notes"],
+                ]
+                for row in doctor_rows
+            ],
+            right_align={3},
+        ),
+    ]
+
+    if pricing_resolution.override_error:
+        lines.extend(["", f"Pricing override error: {pricing_resolution.override_error}"])
+
+    return "\n".join(lines)
+
+
 def _client_report_window(*, target_date: str | None, last_days: int | None, tz) -> tuple[str, str, tuple[str, ...]]:
     if last_days is not None:
         end_date = today_string(tz)
@@ -949,6 +1087,61 @@ def _build_client_date_rows(rows: list[sqlite3.Row]) -> list[dict[str, object]]:
     for row in ordered:
         row["credits"] = round(float(row["credits"]), 8)
     return ordered
+
+
+def _detect_launchd_status() -> dict[str, list[str]]:
+    launch_agents_dir = Path.home() / "Library/LaunchAgents"
+    labels = {
+        "tokkit_labels": [],
+        "legacy_tokstat_labels": [],
+    }
+    if not launch_agents_dir.exists():
+        return labels
+
+    for label in (
+        "com.laoyao.tokkit.scan",
+        "com.laoyao.tokkit.daily-report",
+        "com.laoyao.tokkit.kaku-proxy",
+    ):
+        if (launch_agents_dir / f"{label}.plist").exists():
+            labels["tokkit_labels"].append(label)
+
+    for label in (
+        "com.laoyao.tokstat.scan",
+        "com.laoyao.tokstat.daily-report",
+        "com.laoyao.tokstat.kaku-proxy",
+    ):
+        if (launch_agents_dir / f"{label}.plist").exists():
+            labels["legacy_tokstat_labels"].append(label)
+    return labels
+
+
+def _doctor_action_for_client(row: dict[str, object]) -> str:
+    installed = bool(row["installed"])
+    records = int(row["records"])
+    client = str(row.get("client") or row.get("label") or "")
+
+    if not installed:
+        return "-"
+    if records > 0:
+        return "working"
+    if client == "Kaku":
+        return "point Kaku to the TokKit proxy, then retry"
+    if client == "Warp":
+        return "run `tok scan warp`"
+    if client == "CodeBuddy":
+        return "run `tok scan codebuddy`"
+    if client == "Codex":
+        return "run `tok scan codex`"
+    if client == "Visual Studio Code":
+        return "use the Codex extension or verify codex:vscode usage"
+    if client == "ChatGPT":
+        return "adapter not available yet"
+    if client == "Cursor":
+        return "adapter not available yet"
+    if client == "Trae":
+        return "adapter not available yet"
+    return "scan or configure this client"
 
 
 def _aggregate_usage_rows(
