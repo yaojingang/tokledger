@@ -120,6 +120,7 @@ Daily report:
 - by terminal
 - by model
 - by source
+- estimated API cost for priced exact records
 
 Range report:
 
@@ -128,6 +129,7 @@ Range report:
 - by terminal
 - by model
 - by source detail
+- estimated API cost for priced exact records
 
 Client report:
 
@@ -155,6 +157,13 @@ loading indicator while scanning. You can disable or scope that behavior with:
 TOK_AUTO_SCAN_BEFORE_REPORTS=0 tok today
 TOK_AUTO_SCAN_TARGET=codex tok last 7
 ```
+
+Cost notes:
+
+- `Est.$` is a local API cost estimate based on built-in model pricing profiles
+- `Credits` remains separate for sources like Warp that expose vendor credits
+- partial sources may show `Input/Output/Cached/Reasoning` as `0` and `Est.$` as `-`
+  when only conversation-level totals are available
 
 ## Automatic mode on macOS
 

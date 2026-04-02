@@ -13,6 +13,7 @@ from .db import connect_db
 from .ingest_codebuddy import scan_codebuddy
 from .ingest_codex import scan_codex
 from .ingest_warp import scan_warp
+from .pricing import estimate_cost_usd, normalize_model_display
 from .proxy import ProxyConfig, serve_proxy
 from .utils import DEFAULT_DB_PATH, format_float, format_int, get_timezone, today_string
 
@@ -214,10 +215,10 @@ def render_daily_report(conn: sqlite3.Connection, target_date: str, *, json_mode
     totals = conn.execute(
         """
         SELECT
-            COALESCE(SUM(input_tokens), 0) AS input_tokens,
-            COALESCE(SUM(output_tokens), 0) AS output_tokens,
-            COALESCE(SUM(cached_input_tokens), 0) AS cached_input_tokens,
-            COALESCE(SUM(reasoning_tokens), 0) AS reasoning_tokens,
+            SUM(input_tokens) AS input_tokens,
+            SUM(output_tokens) AS output_tokens,
+            SUM(cached_input_tokens) AS cached_input_tokens,
+            SUM(reasoning_tokens) AS reasoning_tokens,
             COALESCE(SUM(total_tokens), 0) AS total_tokens,
             COALESCE(SUM(credits), 0.0) AS credits,
             COUNT(*) AS records
@@ -226,7 +227,8 @@ def render_daily_report(conn: sqlite3.Connection, target_date: str, *, json_mode
         """,
         (target_date,),
     ).fetchone()
-    detailed_rows = conn.execute(
+    detailed_rows = _enrich_usage_rows(
+        conn.execute(
         """
         SELECT
             app,
@@ -234,10 +236,10 @@ def render_daily_report(conn: sqlite3.Connection, target_date: str, *, json_mode
             measurement_method,
             COALESCE(model, '') AS model,
             COALESCE(json_extract(metadata_json, '$.model_provider'), '') AS model_provider,
-            COALESCE(SUM(input_tokens), 0) AS input_tokens,
-            COALESCE(SUM(output_tokens), 0) AS output_tokens,
-            COALESCE(SUM(cached_input_tokens), 0) AS cached_input_tokens,
-            COALESCE(SUM(reasoning_tokens), 0) AS reasoning_tokens,
+            SUM(input_tokens) AS input_tokens,
+            SUM(output_tokens) AS output_tokens,
+            SUM(cached_input_tokens) AS cached_input_tokens,
+            SUM(reasoning_tokens) AS reasoning_tokens,
             COALESCE(SUM(total_tokens), 0) AS total_tokens,
             COALESCE(SUM(credits), 0.0) AS credits,
             COUNT(*) AS records
@@ -247,7 +249,9 @@ def render_daily_report(conn: sqlite3.Connection, target_date: str, *, json_mode
         ORDER BY total_tokens DESC, credits DESC, app, source, model, model_provider, measurement_method
         """,
         (target_date,),
-    ).fetchall()
+        ).fetchall()
+    )
+    estimated_total_cost = _sum_estimated_cost(detailed_rows)
     by_terminal = _aggregate_usage_rows(
         detailed_rows,
         key_fields=["terminal"],
@@ -257,20 +261,28 @@ def render_daily_report(conn: sqlite3.Connection, target_date: str, *, json_mode
     by_model = _aggregate_usage_rows(
         detailed_rows,
         key_fields=["model_label"],
-        key_builder=lambda row: (_model_label(row["model"], row["model_provider"]),),
+        key_builder=lambda row: (row["model_label"],),
         sort_key=lambda row: (-int(row["total_tokens"]), -float(row["credits"]), str(row["model_label"])),
     )
     by_source = _aggregate_usage_rows(
         detailed_rows,
-        key_fields=["app", "source"],
-        key_builder=lambda row: (row["app"], row["source"]),
-        sort_key=lambda row: (-int(row["total_tokens"]), -float(row["credits"]), str(row["app"]), str(row["source"])),
+        key_fields=["app", "source", "model_label"],
+        key_builder=lambda row: (row["app"], row["source"], row["model_label"]),
+        sort_key=lambda row: (
+            -int(row["total_tokens"]),
+            -float(row["credits"]),
+            str(row["app"]),
+            str(row["source"]),
+            str(row["model_label"]),
+        ),
     )
 
     if json_mode:
+        totals_payload = dict(totals)
+        totals_payload["estimated_cost_usd"] = estimated_total_cost
         payload = {
             "date": target_date,
-            "totals": dict(totals),
+            "totals": totals_payload,
             "by_terminal": by_terminal,
             "by_model": by_model,
             "by_source": by_source,
@@ -287,6 +299,7 @@ def render_daily_report(conn: sqlite3.Connection, target_date: str, *, json_mode
             f"cached={format_int(totals['cached_input_tokens'])} "
             f"reasoning={format_int(totals['reasoning_tokens'])} "
             f"total={format_int(totals['total_tokens'])} "
+            f"est_usd={format_float(estimated_total_cost)} "
             f"credits={format_float(totals['credits'])} "
             f"records={totals['records']}"
         ),
@@ -306,6 +319,7 @@ def render_daily_report(conn: sqlite3.Connection, target_date: str, *, json_mode
                     "Output",
                     "Cached",
                     "Reasoning",
+                    "Est.$",
                     "Credits",
                     "Records",
                 ],
@@ -318,12 +332,13 @@ def render_daily_report(conn: sqlite3.Connection, target_date: str, *, json_mode
                         format_int(row["output_tokens"]),
                         format_int(row["cached_input_tokens"]),
                         format_int(row["reasoning_tokens"]),
+                        format_float(row["estimated_cost_usd"]),
                         format_float(row["credits"]),
                         str(row["records"]),
                     ]
                     for row in by_terminal
                 ],
-                right_align={2, 3, 4, 5, 6, 7, 8},
+                right_align={2, 3, 4, 5, 6, 7, 8, 9},
             )
         )
 
@@ -346,6 +361,7 @@ def render_daily_report(conn: sqlite3.Connection, target_date: str, *, json_mode
                     "Output",
                     "Cached",
                     "Reasoning",
+                    "Est.$",
                     "Credits",
                     "Records",
                 ],
@@ -358,12 +374,13 @@ def render_daily_report(conn: sqlite3.Connection, target_date: str, *, json_mode
                         format_int(row["output_tokens"]),
                         format_int(row["cached_input_tokens"]),
                         format_int(row["reasoning_tokens"]),
+                        format_float(row["estimated_cost_usd"]),
                         format_float(row["credits"]),
                         str(row["records"]),
                     ]
                     for row in by_model
                 ],
-                right_align={2, 3, 4, 5, 6, 7, 8},
+                right_align={2, 3, 4, 5, 6, 7, 8, 9},
             )
         )
 
@@ -381,12 +398,14 @@ def render_daily_report(conn: sqlite3.Connection, target_date: str, *, json_mode
                 headers=[
                     "App",
                     "Source",
+                    "Model",
                     "Method",
                     "Total",
                     "Input",
                     "Output",
                     "Cached",
                     "Reasoning",
+                    "Est.$",
                     "Credits",
                     "Records",
                 ],
@@ -394,18 +413,20 @@ def render_daily_report(conn: sqlite3.Connection, target_date: str, *, json_mode
                     [
                         row["app"],
                         row["source"],
+                        row["model_label"],
                         row["method"],
                         format_int(row["total_tokens"]),
                         format_int(row["input_tokens"]),
                         format_int(row["output_tokens"]),
                         format_int(row["cached_input_tokens"]),
                         format_int(row["reasoning_tokens"]),
+                        format_float(row["estimated_cost_usd"]),
                         format_float(row["credits"]),
                         str(row["records"]),
                     ]
                     for row in by_source
                 ],
-                right_align={3, 4, 5, 6, 7, 8, 9},
+                right_align={4, 5, 6, 7, 8, 9, 10, 11},
             )
         )
     return "\n".join(lines)
@@ -413,26 +434,8 @@ def render_daily_report(conn: sqlite3.Connection, target_date: str, *, json_mode
 
 def render_range_report(conn: sqlite3.Connection, last_days: int, tz, *, json_mode: bool) -> str:
     end_date = today_string(tz)
-    by_date_rows = conn.execute(
-        """
-        SELECT
-            local_date,
-            COALESCE(SUM(total_tokens), 0) AS total_tokens,
-            COALESCE(SUM(input_tokens), 0) AS input_tokens,
-            COALESCE(SUM(output_tokens), 0) AS output_tokens,
-            COALESCE(SUM(cached_input_tokens), 0) AS cached_input_tokens,
-            COALESCE(SUM(reasoning_tokens), 0) AS reasoning_tokens,
-            COALESCE(SUM(credits), 0.0) AS credits,
-            COUNT(*) AS records
-        FROM usage_records
-        WHERE local_date >= date(?, ?)
-        GROUP BY local_date
-        ORDER BY local_date DESC
-        """,
-        (end_date, f"-{max(last_days - 1, 0)} day"),
-    ).fetchall()
-
-    detailed_rows = conn.execute(
+    detailed_rows = _enrich_usage_rows(
+        conn.execute(
         """
         SELECT
             local_date,
@@ -441,10 +444,10 @@ def render_range_report(conn: sqlite3.Connection, last_days: int, tz, *, json_mo
             measurement_method,
             COALESCE(model, '') AS model,
             COALESCE(json_extract(metadata_json, '$.model_provider'), '') AS model_provider,
-            COALESCE(SUM(input_tokens), 0) AS input_tokens,
-            COALESCE(SUM(output_tokens), 0) AS output_tokens,
-            COALESCE(SUM(cached_input_tokens), 0) AS cached_input_tokens,
-            COALESCE(SUM(reasoning_tokens), 0) AS reasoning_tokens,
+            SUM(input_tokens) AS input_tokens,
+            SUM(output_tokens) AS output_tokens,
+            SUM(cached_input_tokens) AS cached_input_tokens,
+            SUM(reasoning_tokens) AS reasoning_tokens,
             COALESCE(SUM(total_tokens), 0) AS total_tokens,
             COALESCE(SUM(credits), 0.0) AS credits,
             COUNT(*) AS records
@@ -454,7 +457,14 @@ def render_range_report(conn: sqlite3.Connection, last_days: int, tz, *, json_mo
         ORDER BY local_date DESC, total_tokens DESC, app, source, model, model_provider, measurement_method
         """,
         (end_date, f"-{max(last_days - 1, 0)} day"),
-    ).fetchall()
+        ).fetchall()
+    )
+    by_date_rows = _aggregate_usage_rows(
+        detailed_rows,
+        key_fields=["local_date"],
+        key_builder=lambda row: (row["local_date"],),
+        sort_key=lambda row: (-int(str(row["local_date"]).replace("-", "")),),
+    )
     by_terminal = _aggregate_usage_rows(
         detailed_rows,
         key_fields=["terminal"],
@@ -464,25 +474,26 @@ def render_range_report(conn: sqlite3.Connection, last_days: int, tz, *, json_mo
     by_model = _aggregate_usage_rows(
         detailed_rows,
         key_fields=["model_label"],
-        key_builder=lambda row: (_model_label(row["model"], row["model_provider"]),),
+        key_builder=lambda row: (row["model_label"],),
         sort_key=lambda row: (-int(row["total_tokens"]), -float(row["credits"]), str(row["model_label"])),
     )
     rows = _aggregate_usage_rows(
         detailed_rows,
-        key_fields=["local_date", "app", "source"],
-        key_builder=lambda row: (row["local_date"], row["app"], row["source"]),
+        key_fields=["local_date", "app", "source", "model_label"],
+        key_builder=lambda row: (row["local_date"], row["app"], row["source"], row["model_label"]),
         sort_key=lambda row: (
             -int(str(row["local_date"]).replace("-", "")),
             -int(row["total_tokens"]),
             str(row["app"]),
             str(row["source"]),
+            str(row["model_label"]),
         ),
     )
     if json_mode:
         return json.dumps(
             {
                 "range_days": last_days,
-                "by_date": [dict(row) for row in by_date_rows],
+                "by_date": by_date_rows,
                 "by_terminal": by_terminal,
                 "by_model": by_model,
                 "by_source": rows,
@@ -508,7 +519,7 @@ def render_range_report(conn: sqlite3.Connection, last_days: int, tz, *, json_mo
             "",
             "By date:",
             _render_table(
-                headers=["Date", "Total", "Input", "Output", "Cached", "Reasoning", "Credits", "Records"],
+                headers=["Date", "Total", "Input", "Output", "Cached", "Reasoning", "Est.$", "Credits", "Records"],
                 rows=[
                     [
                         row["local_date"],
@@ -517,17 +528,18 @@ def render_range_report(conn: sqlite3.Connection, last_days: int, tz, *, json_mo
                         format_int(row["output_tokens"]),
                         format_int(row["cached_input_tokens"]),
                         format_int(row["reasoning_tokens"]),
+                        format_float(row["estimated_cost_usd"]),
                         format_float(row["credits"]),
                         str(row["records"]),
                     ]
                     for row in by_date_rows
                 ],
-                right_align={1, 2, 3, 4, 5, 6, 7},
+                right_align={1, 2, 3, 4, 5, 6, 7, 8},
             ),
             "",
             "By terminal:",
             _render_table(
-                headers=["Terminal", "Method", "Total", "Input", "Output", "Cached", "Reasoning", "Credits", "Records"],
+                headers=["Terminal", "Method", "Total", "Input", "Output", "Cached", "Reasoning", "Est.$", "Credits", "Records"],
                 rows=[
                     [
                         row["terminal"],
@@ -537,17 +549,18 @@ def render_range_report(conn: sqlite3.Connection, last_days: int, tz, *, json_mo
                         format_int(row["output_tokens"]),
                         format_int(row["cached_input_tokens"]),
                         format_int(row["reasoning_tokens"]),
+                        format_float(row["estimated_cost_usd"]),
                         format_float(row["credits"]),
                         str(row["records"]),
                     ]
                     for row in by_terminal
                 ],
-                right_align={2, 3, 4, 5, 6, 7, 8},
+                right_align={2, 3, 4, 5, 6, 7, 8, 9},
             ),
             "",
             "By model:",
             _render_table(
-                headers=["Model", "Method", "Total", "Input", "Output", "Cached", "Reasoning", "Credits", "Records"],
+                headers=["Model", "Method", "Total", "Input", "Output", "Cached", "Reasoning", "Est.$", "Credits", "Records"],
                 rows=[
                     [
                         row["model_label"],
@@ -557,12 +570,13 @@ def render_range_report(conn: sqlite3.Connection, last_days: int, tz, *, json_mo
                         format_int(row["output_tokens"]),
                         format_int(row["cached_input_tokens"]),
                         format_int(row["reasoning_tokens"]),
+                        format_float(row["estimated_cost_usd"]),
                         format_float(row["credits"]),
                         str(row["records"]),
                     ]
                     for row in by_model
                 ],
-                right_align={2, 3, 4, 5, 6, 7, 8},
+                right_align={2, 3, 4, 5, 6, 7, 8, 9},
             ),
             "",
             "By source:",
@@ -575,12 +589,14 @@ def render_range_report(conn: sqlite3.Connection, last_days: int, tz, *, json_mo
                 "Date",
                 "App",
                 "Source",
+                "Model",
                 "Method",
                 "Total",
                 "Input",
                 "Output",
                 "Cached",
                 "Reasoning",
+                "Est.$",
                 "Credits",
                 "Records",
             ],
@@ -589,18 +605,20 @@ def render_range_report(conn: sqlite3.Connection, last_days: int, tz, *, json_mo
                     row["local_date"],
                     row["app"],
                     row["source"],
+                    row["model_label"],
                     row["method"],
                     format_int(row["total_tokens"]),
                     format_int(row["input_tokens"]),
                     format_int(row["output_tokens"]),
                     format_int(row["cached_input_tokens"]),
                     format_int(row["reasoning_tokens"]),
+                    format_float(row["estimated_cost_usd"]),
                     format_float(row["credits"]),
                     str(row["records"]),
                 ]
                 for row in rows
             ],
-            right_align={4, 5, 6, 7, 8, 9, 10},
+            right_align={5, 6, 7, 8, 9, 10, 11, 12},
         )
     )
     return "\n".join(lines)
@@ -864,7 +882,7 @@ def _build_client_date_rows(rows: list[sqlite3.Row]) -> list[dict[str, object]]:
 
 
 def _aggregate_usage_rows(
-    rows: Iterable[sqlite3.Row],
+    rows: Iterable[sqlite3.Row | dict[str, object]],
     *,
     key_fields: list[str],
     key_builder,
@@ -885,21 +903,56 @@ def _aggregate_usage_rows(
                 "total_tokens": 0,
                 "credits": 0.0,
                 "records": 0,
+                "estimated_cost_usd": 0.0,
+                "estimated_cost_present": False,
+                "input_present": False,
+                "output_present": False,
+                "cached_present": False,
+                "reasoning_present": False,
             },
         )
         bucket["methods"].add(str(row["measurement_method"]))
-        bucket["input_tokens"] = int(bucket["input_tokens"]) + int(row["input_tokens"])
-        bucket["output_tokens"] = int(bucket["output_tokens"]) + int(row["output_tokens"])
-        bucket["cached_input_tokens"] = int(bucket["cached_input_tokens"]) + int(row["cached_input_tokens"])
-        bucket["reasoning_tokens"] = int(bucket["reasoning_tokens"]) + int(row["reasoning_tokens"])
+        if row["input_tokens"] is not None:
+            bucket["input_tokens"] = int(bucket["input_tokens"]) + int(row["input_tokens"])
+            bucket["input_present"] = True
+        if row["output_tokens"] is not None:
+            bucket["output_tokens"] = int(bucket["output_tokens"]) + int(row["output_tokens"])
+            bucket["output_present"] = True
+        if row["cached_input_tokens"] is not None:
+            bucket["cached_input_tokens"] = int(bucket["cached_input_tokens"]) + int(row["cached_input_tokens"])
+            bucket["cached_present"] = True
+        if row["reasoning_tokens"] is not None:
+            bucket["reasoning_tokens"] = int(bucket["reasoning_tokens"]) + int(row["reasoning_tokens"])
+            bucket["reasoning_present"] = True
         bucket["total_tokens"] = int(bucket["total_tokens"]) + int(row["total_tokens"])
         bucket["credits"] = float(bucket["credits"]) + float(row["credits"])
         bucket["records"] = int(bucket["records"]) + int(row["records"])
+        estimated_cost = row.get("estimated_cost_usd") if isinstance(row, dict) else None
+        if estimated_cost is not None:
+            bucket["estimated_cost_usd"] = float(bucket["estimated_cost_usd"]) + float(estimated_cost)
+            bucket["estimated_cost_present"] = True
 
     aggregated = list(grouped.values())
     for row in aggregated:
         row["method"] = _format_measurement_methods(row.pop("methods"))
         row["credits"] = round(float(row["credits"]), 8)
+        estimated_cost_present = bool(row.pop("estimated_cost_present"))
+        input_present = bool(row.pop("input_present"))
+        output_present = bool(row.pop("output_present"))
+        cached_present = bool(row.pop("cached_present"))
+        reasoning_present = bool(row.pop("reasoning_present"))
+        if not input_present:
+            row["input_tokens"] = None
+        if not output_present:
+            row["output_tokens"] = None
+        if not cached_present:
+            row["cached_input_tokens"] = None
+        if not reasoning_present:
+            row["reasoning_tokens"] = None
+        if estimated_cost_present:
+            row["estimated_cost_usd"] = round(float(row["estimated_cost_usd"]), 8)
+        else:
+            row["estimated_cost_usd"] = None
     aggregated.sort(key=sort_key)
     return aggregated
 
@@ -932,13 +985,38 @@ def _terminal_label(app: str | None, source: str | None) -> str:
 
 
 def _model_label(model: str | None, provider: str | None) -> str:
-    model_value = (model or "").strip()
-    provider_value = (provider or "").strip()
-    if model_value:
-        return model_value
-    if provider_value:
-        return f"unknown (provider={provider_value})"
-    return "unknown"
+    return normalize_model_display(model, provider)
+
+
+def _enrich_usage_rows(rows: Iterable[sqlite3.Row]) -> list[dict[str, object]]:
+    enriched: list[dict[str, object]] = []
+    for row in rows:
+        item = dict(row)
+        item["model_label"] = _model_label(item.get("model"), item.get("model_provider"))
+        item["estimated_cost_usd"] = estimate_cost_usd(
+            model=item.get("model"),
+            provider=item.get("model_provider"),
+            measurement_method=str(item.get("measurement_method") or ""),
+            input_tokens=int(item.get("input_tokens") or 0),
+            cached_input_tokens=int(item.get("cached_input_tokens") or 0),
+            output_tokens=int(item.get("output_tokens") or 0),
+        )
+        enriched.append(item)
+    return enriched
+
+
+def _sum_estimated_cost(rows: Iterable[dict[str, object]]) -> float | None:
+    total = 0.0
+    present = False
+    for row in rows:
+        value = row.get("estimated_cost_usd")
+        if value is None:
+            continue
+        total += float(value)
+        present = True
+    if not present:
+        return None
+    return round(total, 8)
 
 
 def _render_table(
