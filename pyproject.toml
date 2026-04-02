@@ -1,0 +1,33 @@
+[project]
+name = "tokledger"
+version = "0.1.0"
+description = "Local AI token ledger for Codex, Warp, Kaku, CodeBuddy, and desktop coding workflows."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = []
+keywords = ["ai", "llm", "token-tracking", "terminal", "developer-tools", "sqlite"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: MacOS",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Utilities",
+]
+
+[project.scripts]
+tokstat = "tokstat.cli:main"
+tokledger = "tokstat.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
