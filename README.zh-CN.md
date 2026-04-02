@@ -1,29 +1,29 @@
-# TokLedger
+# TokKit
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
 [产品简介](docs/PRODUCT_BRIEF.md) | [Positioning & roadmap](docs/POSITIONING_AND_ROADMAP.md) | [定位与路线图（简体中文）](docs/POSITIONING_AND_ROADMAP.zh-CN.md)
 
-TokLedger 是一个轻量化、本地优先的 AI 编码工具使用量台账。它面向
+TokKit 是一个轻量化、本地优先的 AI 编码工具使用量台账。它面向
 Codex、Warp、Kaku、CodeBuddy 等桌面工作流，把分散在本机日志、代理响应
 和会话聚合数据里的 token、成本、模型、终端和客户端统一到账本里；对于
-基于本地日志的来源，不要求 SDK 埋点。核心 CLI 是 `tokstat`，更偏操作流
-的快捷命令是 `tok`。
+基于本地日志的来源，不要求 SDK 埋点。核心 CLI 是 `tokkit`，更偏操作流
+的快捷命令是 `tok`，`tokstat` 作为兼容别名保留。
 
 一句话定位：
 
-- TokLedger 是一个轻量化、本地优先、终端优先的 AI 编码工具总账，把碎片化
+- TokKit 是一个轻量化、本地优先、终端优先的 AI 编码工具总账，把碎片化
   usage 变成一份诚实、可解释的 token 和成本台账。
 
-![TokLedger terminal demo](docs/assets/tokledger-terminal-demo.svg)
+![TokKit terminal demo](docs/assets/tokkit-terminal-demo.svg)
 
 ## 它和通用方案有什么不同
 
 大多数 LLM observability 产品默认你拥有应用本身，并且可以接入埋点。
-TokLedger 的出发点不同：你是在一台电脑上同时使用多个 AI 编码工具，需要
+TokKit 的出发点不同：你是在一台电脑上同时使用多个 AI 编码工具，需要
 一份可信的本地账本，而不是一整套云端平台。
 
-TokLedger 重点强化的是：
+TokKit 重点强化的是：
 
 - 轻量化：一个本地 SQLite 台账、一套终端工作流，不依赖托管仪表盘
 - 本地优先：数据默认留在本机，除非你主动导出
@@ -41,7 +41,8 @@ TokLedger 重点强化的是：
 
 所有归一化后的记录都保存在：
 
-- `~/.tokstat/usage.sqlite`
+- 默认是 `~/.tokkit/usage.sqlite`
+- 如果你的机器上已经有 `~/.tokstat`，TokKit 会继续兼容使用旧目录
 
 ## 精度模型
 
@@ -70,7 +71,7 @@ TokLedger 重点强化的是：
 ## 3 步安装
 
 ```bash
-cd "/path/to/tokledger"
+cd "/path/to/tokkit"
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install -e .
@@ -78,9 +79,9 @@ python3 -m pip install -e .
 
 安装后会得到这些命令：
 
-- `tokstat`
-- `tokledger`
+- `tokkit`
 - `tok`
+- `tokstat` 兼容别名
 
 如果你之前已经做过较早版本的 editable install，再执行一次：
 
@@ -109,8 +110,8 @@ tok last 7
 3. 如果你更喜欢底层 CLI，也可以直接执行：
 
 ```bash
-tokstat report-daily --date today --timezone Asia/Shanghai
-tokstat report-range --last 7 --timezone Asia/Shanghai
+tokkit report-daily --date today --timezone Asia/Shanghai
+tokkit report-range --last 7 --timezone Asia/Shanghai
 ```
 
 ## 可选接入路径
@@ -120,7 +121,7 @@ tokstat report-range --last 7 --timezone Asia/Shanghai
 显式扫描所有支持的适配器：
 
 ```bash
-tokstat scan-all --timezone Asia/Shanghai
+tokkit scan-all --timezone Asia/Shanghai
 ```
 
 ### Kaku 精确统计
@@ -128,7 +129,7 @@ tokstat scan-all --timezone Asia/Shanghai
 如果你想精确统计 Kaku 的 token，可以先启动本地 OpenAI-compatible 代理：
 
 ```bash
-tokstat serve-proxy \
+tokkit serve-proxy \
   --host 127.0.0.1 \
   --port 8765 \
   --upstream-base-url https://api.vivgrid.com/v1 \
@@ -172,10 +173,10 @@ tok last 7
 底层 CLI 等价命令：
 
 ```bash
-tokstat report-daily --date today --timezone Asia/Shanghai
-tokstat report-range --last 7 --timezone Asia/Shanghai
-tokstat report-clients --date today --timezone Asia/Shanghai
-tokstat report-clients --last 7 --timezone Asia/Shanghai
+tokkit report-daily --date today --timezone Asia/Shanghai
+tokkit report-range --last 7 --timezone Asia/Shanghai
+tokkit report-clients --date today --timezone Asia/Shanghai
+tokkit report-clients --last 7 --timezone Asia/Shanghai
 ```
 
 ## 报表视图
@@ -228,7 +229,8 @@ TOK_AUTO_SCAN_TARGET=codex tok last 7
 
 - `Est.$` 是本地 API 成本估算，不是供应商最终账单
 - `tok pricing` 可以查看当前 `Est.$` 使用的价格表
-- 如果存在 `~/.tokstat/pricing.json`，TokLedger 会在内置价格表之上做覆盖
+- 如果存在 `~/.tokkit/pricing.json`，TokKit 会在内置价格表之上做覆盖
+- 如果你还在使用旧目录，`~/.tokstat/pricing.json` 也会继续兼容
 - `tok pricing` 会标出每一条价格来自 `built-in` 还是 `override`
 - `Credits` 会继续保留给 Warp 这类直接提供 credits 的来源
 - `partial` 来源如果拿不到方向拆分，`Input/Output/Cached/Reasoning` 会显示 `-`
@@ -252,9 +254,9 @@ TOK_AUTO_SCAN_TARGET=codex tok last 7
 
 生成物位置：
 
-- 数据库：`~/.tokstat/usage.sqlite`
-- 日报：`~/.tokstat/reports/YYYY-MM-DD.txt`
-- 日志：`~/.tokstat/logs/*.log`
+- 数据库：`~/.tokkit/usage.sqlite`
+- 日报：`~/.tokkit/reports/YYYY-MM-DD.txt`
+- 日志：`~/.tokkit/logs/*.log`
 
 ## 进一步阅读
 

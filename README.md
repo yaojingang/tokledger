@@ -1,30 +1,30 @@
-# TokLedger
+# TokKit
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
 [Product brief](docs/PRODUCT_BRIEF.md) | [Positioning & roadmap](docs/POSITIONING_AND_ROADMAP.md) | [定位与路线图（简体中文）](docs/POSITIONING_AND_ROADMAP.zh-CN.md)
 
-TokLedger is the lightweight, local-first usage ledger for AI coding tools.
+TokKit is the lightweight, local-first usage ledger for AI coding tools.
 It helps individual developers track tokens, cost, models, terminals, and
 clients across Codex, Warp, Kaku, CodeBuddy, and similar desktop workflows
 without requiring SDK instrumentation for log-based sources. The core CLI is
-`tokstat`, and the operator shortcut is `tok`.
+`tokkit`, with `tok` as the operator shortcut and `tokstat` kept as a compatibility alias.
 
 In one sentence:
 
-- TokLedger is a lightweight, local-first ledger that turns fragmented AI
+- TokKit is a lightweight, local-first ledger that turns fragmented AI
   coding tool usage into one honest, terminal-first account of tokens and
   cost.
 
-![TokLedger terminal demo](docs/assets/tokledger-terminal-demo.svg)
+![TokKit terminal demo](docs/assets/tokkit-terminal-demo.svg)
 
 ## Why it is different
 
 Most LLM observability products assume you own the application and can add
-instrumentation. TokLedger starts from a different assumption: you are using
+instrumentation. TokKit starts from a different assumption: you are using
 several AI coding tools on one machine and need one trustworthy local ledger.
 
-What TokLedger emphasizes:
+What TokKit emphasizes:
 
 - Lightweight by design: one local SQLite ledger, one terminal workflow, no
   hosted dashboard requirement
@@ -45,7 +45,9 @@ What TokLedger emphasizes:
 - Kaku Assistant through an OpenAI-compatible local proxy
 - CodeBuddy from local task-history estimation
 
-All normalized records are stored in `~/.tokstat/usage.sqlite`.
+All normalized records are stored in `~/.tokkit/usage.sqlite` by default. If an
+existing `~/.tokstat` directory is present, TokKit will continue using it
+unless you move to the new path.
 
 ## Accuracy model
 
@@ -74,7 +76,7 @@ Current source behavior:
 ## Install in 3 steps
 
 ```bash
-cd "/path/to/tokledger"
+cd "/path/to/tokkit"
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install -e .
@@ -82,9 +84,9 @@ python3 -m pip install -e .
 
 That installs:
 
-- `tokstat`
-- `tokledger`
+- `tokkit`
 - `tok`
+- `tokstat` compatibility alias
 
 If you already had an older editable install, rerun `python3 -m pip install -e .`
 to pick up the `tok` entry point.
@@ -108,8 +110,8 @@ tok last 7
 3. If you prefer the lower-level CLI:
 
 ```bash
-tokstat report-daily --date today --timezone Asia/Shanghai
-tokstat report-range --last 7 --timezone Asia/Shanghai
+tokkit report-daily --date today --timezone Asia/Shanghai
+tokkit report-range --last 7 --timezone Asia/Shanghai
 ```
 
 ## Optional setup paths
@@ -119,7 +121,7 @@ tokstat report-range --last 7 --timezone Asia/Shanghai
 Scan all supported adapters explicitly:
 
 ```bash
-tokstat scan-all --timezone Asia/Shanghai
+tokkit scan-all --timezone Asia/Shanghai
 ```
 
 ### Precision for Kaku
@@ -128,7 +130,7 @@ To capture Kaku usage precisely, run the local OpenAI-compatible proxy and
 point Kaku at it:
 
 ```bash
-tokstat serve-proxy \
+tokkit serve-proxy \
   --host 127.0.0.1 \
   --port 8765 \
   --upstream-base-url https://api.vivgrid.com/v1 \
@@ -168,10 +170,10 @@ tok last 7
 Lower-level equivalents:
 
 ```bash
-tokstat report-daily --date today --timezone Asia/Shanghai
-tokstat report-range --last 7 --timezone Asia/Shanghai
-tokstat report-clients --date today --timezone Asia/Shanghai
-tokstat report-clients --last 7 --timezone Asia/Shanghai
+tokkit report-daily --date today --timezone Asia/Shanghai
+tokkit report-range --last 7 --timezone Asia/Shanghai
+tokkit report-clients --date today --timezone Asia/Shanghai
+tokkit report-clients --last 7 --timezone Asia/Shanghai
 ```
 
 ## Report views
@@ -225,7 +227,8 @@ Cost notes:
 
 - `Est.$` is a local API cost estimate based on built-in model pricing profiles
 - `tok pricing` shows the current built-in price table used by `Est.$`
-- if `~/.tokstat/pricing.json` exists, TokLedger merges it over the built-in table
+- if `~/.tokkit/pricing.json` exists, TokKit merges it over the built-in table
+- legacy `~/.tokstat/pricing.json` continues to work if you are still on the old home directory
 - `tok pricing` marks every row as `built-in` or `override`
 - `Credits` remains separate for sources like Warp that expose vendor credits
 - partial sources may show `Input/Output/Cached/Reasoning` as `-` and `Est.$` as `-`
@@ -250,13 +253,13 @@ Override example:
 
 Generated files:
 
-- database: `~/.tokstat/usage.sqlite`
-- reports: `~/.tokstat/reports/YYYY-MM-DD.txt`
-- logs: `~/.tokstat/logs/*.log`
+- database: `~/.tokkit/usage.sqlite`
+- reports: `~/.tokkit/reports/YYYY-MM-DD.txt`
+- logs: `~/.tokkit/logs/*.log`
 
 ## Recommended first release framing
 
-TokLedger should be presented as:
+TokKit should be presented as:
 
 - a Mac-first local CLI alpha
 - best for people using several AI coding tools on one machine

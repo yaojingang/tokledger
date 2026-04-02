@@ -5,7 +5,7 @@
   <circle cx="78" cy="68" r="10" fill="#F87171"/>
   <circle cx="110" cy="68" r="10" fill="#FBBF24"/>
   <circle cx="142" cy="68" r="10" fill="#34D399"/>
-  <text x="720" y="75" text-anchor="middle" fill="#E5E7EB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="26">TokLedger terminal demo</text>
+  <text x="720" y="75" text-anchor="middle" fill="#E5E7EB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="26">TokKit terminal demo</text>
 
   <text x="72" y="150" fill="#34D399" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="28">$ tok last 7</text>
   <text x="72" y="198" fill="#94A3B8" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="24">Range report for last 7 day(s)</text>

@@ -3,18 +3,18 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
-TOKSTAT_HOME="${TOKSTAT_HOME:-$HOME/.tokstat}"
-DB_PATH="${TOKSTAT_DB_PATH:-$TOKSTAT_HOME/usage.sqlite}"
-TIMEZONE="${TOKSTAT_TIMEZONE:-Asia/Shanghai}"
-REPORT_DIR="${TOKSTAT_REPORT_DIR:-$TOKSTAT_HOME/reports}"
-LOG_DIR="${TOKSTAT_LOG_DIR:-$TOKSTAT_HOME/logs}"
-SCAN_MODE="${TOKSTAT_SCAN_MODE:-all}"
-WITH_KAKU_PROXY="${TOKSTAT_INSTALL_KAKU_PROXY:-0}"
-KAKU_UPSTREAM_BASE_URL="${TOKSTAT_KAKU_UPSTREAM_BASE_URL:-}"
-KAKU_PROXY_HOST="${TOKSTAT_KAKU_PROXY_HOST:-127.0.0.1}"
-KAKU_PROXY_PORT="${TOKSTAT_KAKU_PROXY_PORT:-8765}"
+TOKKIT_HOME="${TOKKIT_HOME:-${TOKSTAT_HOME:-$([[ -d "$HOME/.tokkit" || ! -d "$HOME/.tokstat" ]] && echo "$HOME/.tokkit" || echo "$HOME/.tokstat")}}"
+DB_PATH="${TOKKIT_DB_PATH:-${TOKSTAT_DB_PATH:-$TOKKIT_HOME/usage.sqlite}}"
+TIMEZONE="${TOKKIT_TIMEZONE:-${TOKSTAT_TIMEZONE:-Asia/Shanghai}}"
+REPORT_DIR="${TOKKIT_REPORT_DIR:-${TOKSTAT_REPORT_DIR:-$TOKKIT_HOME/reports}}"
+LOG_DIR="${TOKKIT_LOG_DIR:-${TOKSTAT_LOG_DIR:-$TOKKIT_HOME/logs}}"
+SCAN_MODE="${TOKKIT_SCAN_MODE:-${TOKSTAT_SCAN_MODE:-all}}"
+WITH_KAKU_PROXY="${TOKKIT_INSTALL_KAKU_PROXY:-${TOKSTAT_INSTALL_KAKU_PROXY:-0}}"
+KAKU_UPSTREAM_BASE_URL="${TOKKIT_KAKU_UPSTREAM_BASE_URL:-${TOKSTAT_KAKU_UPSTREAM_BASE_URL:-}}"
+KAKU_PROXY_HOST="${TOKKIT_KAKU_PROXY_HOST:-${TOKSTAT_KAKU_PROXY_HOST:-127.0.0.1}}"
+KAKU_PROXY_PORT="${TOKKIT_KAKU_PROXY_PORT:-${TOKSTAT_KAKU_PROXY_PORT:-8765}}"
 
-mkdir -p "$LAUNCH_AGENTS_DIR" "$TOKSTAT_HOME" "$REPORT_DIR" "$LOG_DIR"
+mkdir -p "$LAUNCH_AGENTS_DIR" "$TOKKIT_HOME" "$REPORT_DIR" "$LOG_DIR"
 
 write_plist() {
   local destination="$1"
@@ -41,19 +41,19 @@ write_plist() {
   </array>
   <key>EnvironmentVariables</key>
   <dict>
-    <key>TOKSTAT_DB_PATH</key>
+    <key>TOKKIT_DB_PATH</key>
     <string>$DB_PATH</string>
-    <key>TOKSTAT_TIMEZONE</key>
+    <key>TOKKIT_TIMEZONE</key>
     <string>$TIMEZONE</string>
-    <key>TOKSTAT_REPORT_DIR</key>
+    <key>TOKKIT_REPORT_DIR</key>
     <string>$REPORT_DIR</string>
-    <key>TOKSTAT_SCAN_MODE</key>
+    <key>TOKKIT_SCAN_MODE</key>
     <string>$SCAN_MODE</string>
-    <key>TOKSTAT_KAKU_UPSTREAM_BASE_URL</key>
+    <key>TOKKIT_KAKU_UPSTREAM_BASE_URL</key>
     <string>$KAKU_UPSTREAM_BASE_URL</string>
-    <key>TOKSTAT_KAKU_PROXY_HOST</key>
+    <key>TOKKIT_KAKU_PROXY_HOST</key>
     <string>$KAKU_PROXY_HOST</string>
-    <key>TOKSTAT_KAKU_PROXY_PORT</key>
+    <key>TOKKIT_KAKU_PROXY_PORT</key>
     <string>$KAKU_PROXY_PORT</string>
   </dict>
   <key>RunAtLoad</key>
@@ -89,13 +89,23 @@ EOF
 EOF
 }
 
-SCAN_PLIST="$LAUNCH_AGENTS_DIR/com.laoyao.tokstat.scan.plist"
-REPORT_PLIST="$LAUNCH_AGENTS_DIR/com.laoyao.tokstat.daily-report.plist"
-KAKU_PLIST="$LAUNCH_AGENTS_DIR/com.laoyao.tokstat.kaku-proxy.plist"
+SCAN_PLIST="$LAUNCH_AGENTS_DIR/com.laoyao.tokkit.scan.plist"
+REPORT_PLIST="$LAUNCH_AGENTS_DIR/com.laoyao.tokkit.daily-report.plist"
+KAKU_PLIST="$LAUNCH_AGENTS_DIR/com.laoyao.tokkit.kaku-proxy.plist"
+
+for legacy_name in \
+  "com.laoyao.tokstat.scan" \
+  "com.laoyao.tokstat.daily-report" \
+  "com.laoyao.tokstat.kaku-proxy"
+do
+  legacy_plist="$LAUNCH_AGENTS_DIR/$legacy_name.plist"
+  launchctl unload "$legacy_plist" >/dev/null 2>&1 || true
+  rm -f "$legacy_plist"
+done
 
 write_plist \
   "$SCAN_PLIST" \
-  "com.laoyao.tokstat.scan" \
+  "com.laoyao.tokkit.scan" \
   "$ROOT_DIR/scripts/run_scan.sh" \
   "$LOG_DIR/scan.out.log" \
   "$LOG_DIR/scan.err.log" \
@@ -106,7 +116,7 @@ write_plist \
 
 write_plist \
   "$REPORT_PLIST" \
-  "com.laoyao.tokstat.daily-report" \
+  "com.laoyao.tokkit.daily-report" \
   "$ROOT_DIR/scripts/run_daily_report.sh" \
   "$LOG_DIR/report.out.log" \
   "$LOG_DIR/report.err.log" \
@@ -122,13 +132,13 @@ launchctl load "$REPORT_PLIST"
 
 if [[ "$WITH_KAKU_PROXY" == "1" ]]; then
   if [[ -z "$KAKU_UPSTREAM_BASE_URL" ]]; then
-    echo "TOKSTAT_KAKU_UPSTREAM_BASE_URL is required when TOKSTAT_INSTALL_KAKU_PROXY=1" >&2
+    echo "TOKKIT_KAKU_UPSTREAM_BASE_URL is required when TOKKIT_INSTALL_KAKU_PROXY=1" >&2
     exit 1
   fi
 
   write_plist \
     "$KAKU_PLIST" \
-    "com.laoyao.tokstat.kaku-proxy" \
+    "com.laoyao.tokkit.kaku-proxy" \
     "$ROOT_DIR/scripts/run_kaku_proxy.sh" \
     "$LOG_DIR/kaku-proxy.out.log" \
     "$LOG_DIR/kaku-proxy.err.log" \
@@ -142,10 +152,10 @@ if [[ "$WITH_KAKU_PROXY" == "1" ]]; then
 fi
 
 echo "Installed launchd jobs:"
-echo "  - com.laoyao.tokstat.scan (hourly)"
-echo "  - com.laoyao.tokstat.daily-report (00:05 local time)"
+echo "  - com.laoyao.tokkit.scan (hourly)"
+echo "  - com.laoyao.tokkit.daily-report (00:05 local time)"
 if [[ "$WITH_KAKU_PROXY" == "1" ]]; then
-  echo "  - com.laoyao.tokstat.kaku-proxy (always on)"
+  echo "  - com.laoyao.tokkit.kaku-proxy (always on)"
 fi
 
 echo

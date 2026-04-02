@@ -1,8 +1,8 @@
-# TokLedger Positioning and Roadmap
+# TokKit Positioning and Roadmap
 
 ## One-line positioning
 
-TokLedger is the local-first usage ledger for AI coding tools. It tracks
+TokKit is the local-first usage ledger for AI coding tools. It tracks
 tokens, cost, models, terminals, and clients across desktop assistants, IDE
 extensions, and local proxies without requiring SDK instrumentation for
 log-based sources.
@@ -10,18 +10,18 @@ log-based sources.
 ## Product thesis
 
 Most LLM observability products are built for teams shipping AI applications.
-TokLedger is built for individuals and small teams using many AI coding tools
+TokKit is built for individuals and small teams using many AI coding tools
 on one machine. The product wins by treating local AI usage as an accounting
 problem first, not an LLMOps platform problem.
 
-## What TokLedger is
+## What TokKit is
 
 - A local SQLite ledger for AI coding tool usage
 - A normalization layer across exact, partial, and estimated sources
 - A terminal-first reporting workflow for daily and multi-day usage review
 - A low-friction adapter layer combining log-based and proxy-based collection
 
-## What TokLedger is not
+## What TokKit is not
 
 - Not a generic cloud LLM observability platform
 - Not a prompt playground or evaluation suite
@@ -68,7 +68,7 @@ problem first, not an LLMOps platform problem.
 
 ## Strategic wedge
 
-TokLedger should compete on “local AI accounting for coding tools,” not on
+TokKit should compete on “local AI accounting for coding tools,” not on
 “general LLMOps.” That wedge is defensible because most larger observability
 products assume:
 
@@ -77,7 +77,7 @@ products assume:
 - centralized traffic
 - team workflows
 
-TokLedger instead assumes:
+TokKit instead assumes:
 
 - many clients on one laptop
 - fragmented local logs
@@ -87,7 +87,7 @@ TokLedger instead assumes:
 ## Competitive angle
 
 Against products like Langfuse, Phoenix, Helicone, Agenta, and OpenLIT,
-TokLedger should emphasize:
+TokKit should emphasize:
 
 - local-first storage and reporting
 - support for desktop assistants and AI coding terminals
@@ -134,7 +134,7 @@ TokLedger should emphasize:
 
 Success bar for P0:
 
-- a new user can install TokLedger, connect the tools they already use, and
+- a new user can install TokKit, connect the tools they already use, and
   trust the first report they see
 
 ### P1: Turn accounting into control
@@ -190,7 +190,7 @@ Those are valid adjacent areas, but they should not lead the roadmap.
 
 ## Success criteria
 
-TokLedger is on the right path if users can:
+TokKit is on the right path if users can:
 
 - install it quickly
 - see useful data on day one

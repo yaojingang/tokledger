@@ -2,14 +2,14 @@
 
 ## Recommended repository setup
 
-- Repository name: `tokledger`
+- Repository name: `tokkit`
 - Visibility: start private if you want one more polish pass, otherwise public
 - Default branch: `main`
 - Initial release tag: `v0.1.0`
 
 ## What to publish in the first push
 
-- Source code for `tokstat`
+- Source code for `tokkit`
 - Shell helper guidance for `tok`
 - `launchd` scripts for automatic scan and daily reporting
 - Product brief and publish plan
@@ -30,8 +30,8 @@ Do not publish:
 Use this if you want the first public commit history to already look curated.
 
 1. Initialize a new git repo in the project directory
-2. Commit the codebase as `feat: initial TokLedger release`
-3. Create the GitHub repo `tokledger`
+2. Commit the codebase as `feat: initial TokKit release`
+3. Create the GitHub repo `tokkit`
 4. Push `main`
 5. Create release `v0.1.0`
 
@@ -46,7 +46,7 @@ Use this if you want to check README, screenshots, and license one more time.
 
 ## Suggested commit sequence
 
-1. `chore: initialize TokLedger project metadata`
+1. `chore: initialize TokKit project metadata`
 2. `feat: add local token ledger for Codex, Warp, Kaku, and CodeBuddy`
 3. `feat: add terminal, model, and client usage reports`
 4. `feat: add tok helper UX with inline hints and autosuggest`
@@ -77,7 +77,7 @@ Use this if you want to check README, screenshots, and license one more time.
 
 ### Headline
 
-TokLedger v0.1.0: local token accounting for desktop AI coding tools
+TokKit v0.1.0: local token accounting for desktop AI coding tools
 
 ### Highlights
 

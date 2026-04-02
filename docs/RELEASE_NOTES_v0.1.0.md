@@ -1,4 +1,4 @@
-# TokLedger v0.1.0
+# TokKit v0.1.0
 
 Local AI token ledger for desktop coding tools.
 
@@ -16,8 +16,9 @@ Local AI token ledger for desktop coding tools.
 
 ### What is included
 
-- `tokstat` CLI
-- `tokledger` package entry point
+- `tokkit` CLI
+- `tok` operator shortcut
+- `tokstat` compatibility alias
 - local SQLite usage ledger
 - Kaku-compatible OpenAI proxy for precise upstream usage capture
 - Warp and CodeBuddy local ingesters
@@ -41,8 +42,9 @@ Local AI token ledger for desktop coding tools.
 
 ### 本次发布包含
 
-- `tokstat` CLI
-- `tokledger` 包入口
+- `tokkit` CLI
+- `tok` 快捷命令
+- `tokstat` 兼容别名
 - 本地 SQLite 使用台账
 - 面向 Kaku 的 OpenAI 兼容代理
 - Warp 与 CodeBuddy 本地采集器

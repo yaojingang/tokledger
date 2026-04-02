@@ -1,12 +1,12 @@
 #!/bin/zsh
 set -euo pipefail
 
-find_tokstat_python() {
+find_tokkit_python() {
   local candidate
   local version
 
   for candidate in \
-    "${TOKSTAT_PYTHON:-}" \
+    "${TOKKIT_PYTHON:-${TOKSTAT_PYTHON:-}}" \
     /opt/homebrew/bin/python3.14 \
     /opt/homebrew/bin/python3.13 \
     /opt/homebrew/bin/python3.12 \
@@ -39,6 +39,10 @@ PY
     fi
   done
 
-  echo "Unable to find Python 3.10+ for tokstat" >&2
+  echo "Unable to find Python 3.10+ for TokKit" >&2
   return 1
+}
+
+find_tokstat_python() {
+  find_tokkit_python
 }

@@ -1,15 +1,16 @@
-# TokLedger
+# TokKit
 
 ## Product name
 
-- Product: `TokLedger`
-- CLI: `tokstat`
+- Product: `TokKit`
+- CLI: `tokkit`
 - Optional shell shortcut: `tok`
-- Suggested GitHub repo: `tokledger`
+- Compatibility alias: `tokstat`
+- Suggested GitHub repo: `tokkit`
 
 ## One-line positioning
 
-TokLedger is a local-first token ledger for desktop AI coding tools. It turns
+TokKit is a local-first token ledger for desktop AI coding tools. It turns
 fragmented usage data from terminals, IDEs, and local assistants into one
 consistent daily view.
 
@@ -23,7 +24,7 @@ consistent daily view.
 ## Core value
 
 Most AI tools show usage in separate places, with different definitions and
-different levels of accuracy. TokLedger unifies that into one local SQLite
+different levels of accuracy. TokKit unifies that into one local SQLite
 ledger and makes the measurement method explicit.
 
 ## Product highlights
@@ -53,7 +54,7 @@ Initial release should be framed as:
 
 ## Demo flow
 
-1. Scan local data sources with `tokstat scan-all`
+1. Scan local data sources with `tokkit scan-all`
 2. View today with `tok today`
 3. View the last week with `tok last 7`
 4. View client coverage with `tok clients month`
