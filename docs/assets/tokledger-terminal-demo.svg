@@ -1,0 +1,36 @@
+<svg width="1440" height="920" viewBox="0 0 1440 920" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1440" height="920" rx="28" fill="#0B1020"/>
+  <rect x="36" y="36" width="1368" height="848" rx="22" fill="#111827" stroke="#2D3748" stroke-width="2"/>
+  <rect x="36" y="36" width="1368" height="64" rx="22" fill="#0F172A"/>
+  <circle cx="78" cy="68" r="10" fill="#F87171"/>
+  <circle cx="110" cy="68" r="10" fill="#FBBF24"/>
+  <circle cx="142" cy="68" r="10" fill="#34D399"/>
+  <text x="720" y="75" text-anchor="middle" fill="#E5E7EB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="26">TokLedger terminal demo</text>
+
+  <text x="72" y="150" fill="#34D399" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="28">$ tok last 7</text>
+  <text x="72" y="198" fill="#94A3B8" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="24">Range report for last 7 day(s)</text>
+
+  <rect x="72" y="232" width="1296" height="268" rx="14" fill="#0B1220" stroke="#1F2937" stroke-width="2"/>
+  <text x="96" y="270" fill="#F8FAFC" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="20">By date</text>
+  <text x="96" y="314" fill="#93C5FD" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="18">Date         Total         Input         Output     Cached        Reasoning   Records</text>
+  <text x="96" y="352" fill="#E5E7EB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="18">2026-04-02   9,415,970     9,334,641      51,753     7,864,320      29,283        68</text>
+  <text x="96" y="388" fill="#E5E7EB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="18">2026-04-01   331,506,524   329,123,237  1,633,775   299,967,104    689,388     2,391</text>
+  <text x="96" y="424" fill="#E5E7EB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="18">2026-03-31   202,351,548   198,987,069  1,015,460   176,178,944    203,132     1,804</text>
+  <text x="96" y="460" fill="#64748B" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="18">... grouped across tools, terminals, and models ...</text>
+
+  <rect x="72" y="534" width="624" height="290" rx="14" fill="#0B1220" stroke="#1F2937" stroke-width="2"/>
+  <text x="96" y="572" fill="#F8FAFC" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="20">By terminal</text>
+  <text x="96" y="616" fill="#93C5FD" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="18">Terminal   Method    Total         Input         Output</text>
+  <text x="96" y="654" fill="#E5E7EB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="18">CLI        exact     636,269,585   631,922,633   3,255,365</text>
+  <text x="96" y="690" fill="#E5E7EB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="18">VS Code    exact     193,541,504   192,030,522     834,355</text>
+  <text x="96" y="726" fill="#E5E7EB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="18">Warp       partial     2,397,042             0           0</text>
+  <text x="96" y="782" fill="#A7F3D0" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="18">Local-first ledger. Honest exact / partial / estimated coverage.</text>
+
+  <rect x="744" y="534" width="624" height="290" rx="14" fill="#0B1220" stroke="#1F2937" stroke-width="2"/>
+  <text x="768" y="572" fill="#F8FAFC" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="20">By model</text>
+  <text x="768" y="616" fill="#93C5FD" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="18">Model                          Method    Total         Credits</text>
+  <text x="768" y="654" fill="#E5E7EB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="18">unknown (provider=openai)      exact     829,811,089   0.0000</text>
+  <text x="768" y="690" fill="#E5E7EB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="18">Claude Sonnet 4.6              partial     2,121,418  96.2073</text>
+  <text x="768" y="726" fill="#E5E7EB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="18">Claude Haiku 4.5               partial       128,151   8.0304</text>
+  <text x="768" y="782" fill="#FDE68A" font-family="SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="18">Track daily token behavior across desktop AI coding tools.</text>
+</svg>

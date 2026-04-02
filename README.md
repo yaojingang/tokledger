@@ -6,6 +6,12 @@ It pulls together fragmented usage from terminal agents, IDE assistants, and
 local AI helpers into one consistent daily view. The CLI is `tokstat`, and the
 optional shell shortcut is `tok`.
 
+TokLedger 是一个面向桌面 AI 编码工具的本地 Token 台账。
+
+它把终端 Agent、IDE 助手和本地 AI 工具分散的使用数据统一整理到一个视图里。CLI 主入口是 `tokstat`，可选的 Shell 快捷命令是 `tok`。
+
+![TokLedger terminal demo](docs/assets/tokledger-terminal-demo.svg)
+
 ## Why TokLedger
 
 Most AI coding tools expose usage in separate places, with different levels of
