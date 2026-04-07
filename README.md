@@ -70,7 +70,7 @@ Current source behavior:
 - Kaku proxy: exact when the upstream response includes OpenAI-style `usage`
 - Warp: partial for historical day-level backfill because local data is conversation-based
 - CodeBuddy: estimated from locally cached task text
-- Augment: currently unavailable; local storage shows task state, tool outputs, and edit checkpoints, but not a stable token ledger or full prompt/response history
+- Augment: currently unavailable from local logs alone; task state, tool outputs, and edit checkpoints exist, but not a stable token ledger. The extension does expose API-token and custom URL settings, so proxy-based exact tracking may be possible in a future adapter
 
 ## Highlights
 

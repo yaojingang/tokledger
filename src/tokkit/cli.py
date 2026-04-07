@@ -993,6 +993,7 @@ def render_budget_report(conn: sqlite3.Connection, tz, *, json_mode: bool) -> st
 def render_doctor_report(conn: sqlite3.Connection, db_path: Path, tz, *, json_mode: bool) -> str:
     pricing_resolution = resolve_price_book()
     installed_map = detect_installed_clients()
+    augment_state = _read_augment_setup_state()
     source_rows = conn.execute(
         """
         SELECT
@@ -1046,8 +1047,8 @@ def render_doctor_report(conn: sqlite3.Connection, db_path: Path, tz, *, json_mo
             "coverage": row["coverage"],
             "records": row["records"],
             "last_seen": row["last_seen"],
-            "notes": row["notes"],
-            "recommended_action": _doctor_action_for_client(row),
+            "notes": _doctor_notes_for_client(row, augment_state=augment_state),
+            "recommended_action": _doctor_action_for_client(row, augment_state=augment_state),
         }
         for row in by_client
     ]
@@ -1057,6 +1058,7 @@ def render_doctor_report(conn: sqlite3.Connection, db_path: Path, tz, *, json_mo
             {
                 "config": config_payload,
                 "launchd": launchd_payload,
+                "augment": augment_state,
                 "clients": doctor_rows,
             },
             ensure_ascii=False,
@@ -1093,6 +1095,23 @@ def render_doctor_report(conn: sqlite3.Connection, db_path: Path, tz, *, json_mo
                 ["TokKit launchd labels", ", ".join(launchd_status["tokkit_labels"]) or "-"],
                 ["Legacy tokstat labels", ", ".join(launchd_status["legacy_tokstat_labels"]) or "-"],
                 ["Automatic mode installed", "yes" if launchd_status["tokkit_labels"] else "no"],
+            ],
+        ),
+        "",
+        "Augment diagnostics:",
+        _render_table(
+            headers=["Item", "Value"],
+            rows=[
+                ["Settings path", str(augment_state["settings_path"])],
+                ["Settings exist", "yes" if augment_state["settings_exists"] else "no"],
+                ["OAuth mode", "yes" if augment_state["use_oauth"] else "no"],
+                ["API token configured", "yes" if augment_state["api_token_configured"] else "no"],
+                ["Completion URL", augment_state["completion_url"] or "-"],
+                ["Chat URL override", augment_state["chat_url"] or "-"],
+                ["Next Edit URL override", augment_state["next_edit_url"] or "-"],
+                ["Smart Paste URL override", augment_state["smart_paste_url"] or "-"],
+                ["Proxy exact potential", "yes" if augment_state["proxy_exact_possible"] else "no"],
+                ["Assessment", str(augment_state["assessment"])],
             ],
         ),
         "",
@@ -1496,6 +1515,93 @@ def _read_kaku_setup_state() -> dict[str, object]:
     return state
 
 
+def _read_augment_setup_state() -> dict[str, object]:
+    settings_path = Path.home() / "Library/Application Support/Code/User/settings.json"
+    state: dict[str, object] = {
+        "settings_path": str(settings_path),
+        "settings_exists": settings_path.exists(),
+        "api_token_configured": False,
+        "completion_url": "",
+        "chat_url": "",
+        "next_edit_url": "",
+        "smart_paste_url": "",
+        "oauth_url": "",
+        "use_oauth": False,
+        "proxy_exact_possible": False,
+        "assessment": "Augment settings not found.",
+    }
+    if not settings_path.exists():
+        return state
+
+    try:
+        payload = json.loads(settings_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        state["assessment"] = f"Failed to parse VS Code settings.json: {exc}"
+        return state
+
+    if not isinstance(payload, dict):
+        state["assessment"] = "VS Code settings.json is not a JSON object."
+        return state
+
+    advanced = payload.get("augment.advanced")
+    if not isinstance(advanced, dict):
+        state["assessment"] = (
+            "Augment is installed, but no augment.advanced overrides are configured in VS Code settings."
+        )
+        return state
+
+    api_token = str(advanced.get("apiToken") or "").strip()
+    completion_url = str(advanced.get("completionURL") or "").strip()
+    oauth = advanced.get("oauth")
+    chat = advanced.get("chat")
+    next_edit = advanced.get("nextEdit")
+    smart_paste = advanced.get("smartPaste")
+
+    oauth_url = str(oauth.get("url") or "").strip() if isinstance(oauth, dict) else ""
+    chat_url = str(chat.get("url") or "").strip() if isinstance(chat, dict) else ""
+    next_edit_url = str(next_edit.get("url") or "").strip() if isinstance(next_edit, dict) else ""
+    smart_paste_url = str(smart_paste.get("url") or "").strip() if isinstance(smart_paste, dict) else ""
+
+    use_oauth = bool(oauth_url and not api_token and not completion_url)
+    has_hidden_overrides = any((chat_url, next_edit_url, smart_paste_url))
+    proxy_exact_possible = bool(api_token and completion_url)
+
+    if proxy_exact_possible and has_hidden_overrides:
+        assessment = (
+            "Augment is in API-token mode with custom URLs configured. Proxy-based exact tracking looks feasible."
+        )
+    elif proxy_exact_possible:
+        assessment = (
+            "Augment is in API-token mode with completionURL configured. Chat/Next Edit/Smart Paste may still need "
+            "hidden URL overrides for full exact coverage."
+        )
+    elif use_oauth:
+        assessment = (
+            "Augment currently uses OAuth tenant routing. Local exact tracking is unavailable; switching to API-token "
+            "mode would be required for proxy-based exact capture."
+        )
+    else:
+        assessment = (
+            "Augment is not configured for API-token mode yet. A proxy path may exist if you set "
+            "augment.advanced.apiToken and augment.advanced.completionURL manually in VS Code settings."
+        )
+
+    state.update(
+        {
+            "api_token_configured": bool(api_token),
+            "completion_url": completion_url,
+            "chat_url": chat_url,
+            "next_edit_url": next_edit_url,
+            "smart_paste_url": smart_paste_url,
+            "oauth_url": oauth_url,
+            "use_oauth": use_oauth,
+            "proxy_exact_possible": proxy_exact_possible,
+            "assessment": assessment,
+        }
+    )
+    return state
+
+
 def _is_local_proxy_url(url: str) -> bool:
     normalized = url.strip().lower()
     return normalized.startswith("http://127.0.0.1:8765") or normalized.startswith("http://localhost:8765")
@@ -1678,7 +1784,26 @@ def _budget_status(est_pct: float | None, credits_pct: float | None) -> str:
     return "ok"
 
 
-def _doctor_action_for_client(row: dict[str, object]) -> str:
+def _doctor_notes_for_client(
+    row: dict[str, object],
+    *,
+    augment_state: dict[str, object] | None = None,
+) -> str:
+    client = str(row.get("client") or row.get("label") or "")
+    notes = str(row.get("notes") or "")
+    if client != "Augment" or not augment_state:
+        return notes
+    assessment = str(augment_state.get("assessment") or "").strip()
+    if not assessment:
+        return notes
+    return f"{notes} {assessment}".strip()
+
+
+def _doctor_action_for_client(
+    row: dict[str, object],
+    *,
+    augment_state: dict[str, object] | None = None,
+) -> str:
     installed = bool(row["installed"])
     records = int(row["records"])
     client = str(row.get("client") or row.get("label") or "")
@@ -1694,7 +1819,16 @@ def _doctor_action_for_client(row: dict[str, object]) -> str:
     if client == "Claude Code":
         return "run `tok scan claude-code`"
     if client == "Augment":
-        return "unavailable: local usage ledger not found"
+        if augment_state and bool(augment_state.get("proxy_exact_possible")):
+            if any(
+                str(augment_state.get(key) or "").strip()
+                for key in ("chat_url", "next_edit_url", "smart_paste_url")
+            ):
+                return "experimental: point Augment URLs to a local proxy, then build an Augment ingester"
+            return "experimental: completionURL is configured, but chat/nextEdit URLs may still need proxy overrides"
+        if augment_state and bool(augment_state.get("use_oauth")):
+            return "switch Augment from OAuth to API-token mode if you want to test proxy-based exact capture"
+        return "unavailable locally; API-token mode may allow a future proxy-based adapter"
     if client == "CodeBuddy":
         return "run `tok scan codebuddy`"
     if client == "Codex":

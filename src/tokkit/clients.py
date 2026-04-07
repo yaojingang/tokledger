@@ -73,7 +73,9 @@ CLIENT_DEFINITIONS: tuple[ClientDefinition, ...] = (
         default_coverage="unavailable",
         notes=(
             "Local task manifests, request selection metadata, tool outputs, and edit shards exist, "
-            "but no stable token ledger or complete prompt/response transcript has been found."
+            "but no stable token ledger or complete prompt/response transcript has been found. "
+            "The VS Code extension does expose API-token and custom URL settings, so proxy-based "
+            "exact tracking may be possible."
         ),
         home_globs=(".vscode/extensions/augment.vscode-augment-*",),
     ),
