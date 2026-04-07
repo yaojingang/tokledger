@@ -27,6 +27,9 @@ Reports / 报表:
   tok doctor                Inspect local setup and client coverage / 检查本地配置和客户端覆盖情况
   tok setup                 Inspect or apply common setup steps / 检查或执行常见安装配置步骤
   tok budget                Show budget status for today/week/month / 查看今天、本周、本月预算状态
+  tok augment status        Inspect Augment capture hook state / 检查 Augment 捕获 hook 状态
+  tok augment install       Install Augment capture hook / 安装 Augment 捕获 hook
+  tok augment remove        Remove Augment capture hook / 移除 Augment 捕获 hook
 
 Client coverage / 客户端汇总:
   tok clients               Show today's client coverage report / 查看今天的客户端汇总
@@ -108,6 +111,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_doctor_command(args[1:])
     if command == "setup":
         return _run_setup_command(args[1:])
+    if command == "augment":
+        return _run_augment_command(args[1:])
     if command == "files":
         return _run_files_command()
     if command == "open":
@@ -228,6 +233,26 @@ def _run_setup_command(args: list[str]) -> int:
             command.append(arg)
         idx += 1
     return _run_tokkit(command)
+
+
+def _run_augment_command(args: list[str]) -> int:
+    target = args[0] if args else "status"
+    if target == "status":
+        return _run_tokkit(["patch-augment", "--status"])
+    if target in {"install", "enable"}:
+        return _run_tokkit(["patch-augment"])
+    if target in {"remove", "disable"}:
+        return _run_tokkit(["patch-augment", "--remove"])
+    if target == "json":
+        next_target = args[1] if len(args) > 1 else "status"
+        if next_target == "status":
+            return _run_tokkit(["patch-augment", "--status", "--json"])
+        if next_target in {"install", "enable"}:
+            return _run_tokkit(["patch-augment", "--json"])
+        if next_target in {"remove", "disable"}:
+            return _run_tokkit(["patch-augment", "--remove", "--json"])
+    print(f"tok: unsupported augment target '{target}'", file=sys.stderr)
+    return 1
 
 
 def _run_report(args: list[str]) -> int:

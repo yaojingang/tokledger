@@ -10,9 +10,11 @@ import subprocess
 import sys
 import tomllib
 from datetime import timedelta
+from dataclasses import asdict
 from pathlib import Path
 from typing import Iterable
 
+from .augment_capture import apply_augment_capture_patch, inspect_augment_patch, remove_augment_capture_patch
 from .budget import resolve_budget_config, write_budget_template
 from .clients import CLIENT_DEFINITIONS, detect_installed_clients, logical_client_for_usage_row
 from .db import connect_db
@@ -45,6 +47,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     augment_cmd = subparsers.add_parser("scan-augment", help="Ingest locally captured Augment usage.")
     augment_cmd.add_argument("--capture-file", type=Path, default=default_augment_capture_path())
+
+    patch_augment_cmd = subparsers.add_parser(
+        "patch-augment",
+        help="Install, inspect, or remove the local Augment runtime capture hook.",
+    )
+    patch_augment_cmd.add_argument("--extension-dir", type=Path, default=None)
+    patch_augment_cmd.add_argument("--capture-file", type=Path, default=default_augment_capture_path())
+    patch_augment_cmd.add_argument("--json", action="store_true")
+    action_group = patch_augment_cmd.add_mutually_exclusive_group()
+    action_group.add_argument("--status", action="store_true")
+    action_group.add_argument("--remove", action="store_true")
 
     codebuddy_cmd = subparsers.add_parser("scan-codebuddy", help="Estimate CodeBuddy usage from local task history.")
     codebuddy_cmd.add_argument(
@@ -173,6 +186,19 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "setup":
         return run_setup(args, tz)
+
+    if args.command == "patch-augment":
+        if args.status:
+            status = inspect_augment_patch(extension_dir=args.extension_dir, capture_path=args.capture_file)
+            print(_render_augment_patch_status(status, json_mode=args.json))
+            return 0
+        if args.remove:
+            status = remove_augment_capture_patch(extension_dir=args.extension_dir, capture_path=args.capture_file)
+            print(_render_augment_patch_status(status, json_mode=args.json, action="removed"))
+            return 0
+        status = apply_augment_capture_patch(extension_dir=args.extension_dir, capture_path=args.capture_file)
+        print(_render_augment_patch_status(status, json_mode=args.json, action="installed"))
+        return 0
 
     conn = connect_db(args.db)
     try:
@@ -1762,6 +1788,50 @@ def _build_setup_recommendations(
         recommendations.append("Optional: create `~/.tokkit/pricing.json` if you want local pricing overrides for `Est.$`.")
 
     return recommendations
+
+
+def _render_augment_patch_status(status, *, json_mode: bool, action: str | None = None) -> str:
+    payload = asdict(status)
+    if action:
+        payload["action"] = action
+    if json_mode:
+        return json.dumps(payload, ensure_ascii=False, indent=2)
+
+    lines = ["TokKit Augment capture", ""]
+    if action == "installed":
+        lines.append("Installed the Augment runtime capture hook. Restart VS Code to load the patched extension.")
+        lines.append("")
+    elif action == "removed":
+        lines.append("Removed the Augment runtime capture hook. Restart VS Code to restore the original extension bundle.")
+        lines.append("")
+
+    lines.append(
+        _render_table(
+            headers=["Item", "Value"],
+            rows=[
+                ["Installed versions", ", ".join(status.installed_versions) or "-"],
+                ["Selected extension", status.extension_dir or "-"],
+                ["Extension bundle", status.extension_js or "-"],
+                ["Backup bundle", status.backup_path or "-"],
+                ["Extension exists", "yes" if status.extension_exists else "no"],
+                ["Capture hook installed", "yes" if status.patched else "no"],
+                ["Backup exists", "yes" if status.backup_exists else "no"],
+                ["Capture file", status.capture_path],
+                ["Patch version", status.patch_version],
+            ],
+        )
+    )
+    if action == "installed":
+        lines.extend(
+            [
+                "",
+                "Next steps:",
+                "1. Restart Visual Studio Code.",
+                "2. Use Augment once.",
+                "3. Run `tok scan augment` or any report command.",
+            ]
+        )
+    return "\n".join(lines)
 
 
 def _shift_date(raw_date: str, days: int) -> str:
