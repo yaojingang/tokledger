@@ -1517,6 +1517,7 @@ def _read_kaku_setup_state() -> dict[str, object]:
 
 def _read_augment_setup_state() -> dict[str, object]:
     settings_path = Path.home() / "Library/Application Support/Code/User/settings.json"
+    default_oauth_url = "https://auth.augmentcode.com"
     state: dict[str, object] = {
         "settings_path": str(settings_path),
         "settings_exists": settings_path.exists(),
@@ -1525,10 +1526,12 @@ def _read_augment_setup_state() -> dict[str, object]:
         "chat_url": "",
         "next_edit_url": "",
         "smart_paste_url": "",
-        "oauth_url": "",
-        "use_oauth": False,
+        "oauth_url": default_oauth_url,
+        "use_oauth": True,
         "proxy_exact_possible": False,
-        "assessment": "Augment settings not found.",
+        "assessment": (
+            "Augment settings not found. Runtime behavior will fall back to OAuth tenant routing."
+        ),
     }
     if not settings_path.exists():
         return state
@@ -1546,7 +1549,8 @@ def _read_augment_setup_state() -> dict[str, object]:
     advanced = payload.get("augment.advanced")
     if not isinstance(advanced, dict):
         state["assessment"] = (
-            "Augment is installed, but no augment.advanced overrides are configured in VS Code settings."
+            "Augment is installed, but no augment.advanced overrides are configured in VS Code settings. "
+            "Runtime behavior will use the default OAuth tenant route."
         )
         return state
 
@@ -1562,7 +1566,7 @@ def _read_augment_setup_state() -> dict[str, object]:
     next_edit_url = str(next_edit.get("url") or "").strip() if isinstance(next_edit, dict) else ""
     smart_paste_url = str(smart_paste.get("url") or "").strip() if isinstance(smart_paste, dict) else ""
 
-    use_oauth = bool(oauth_url and not api_token and not completion_url)
+    use_oauth = not bool(api_token or completion_url)
     has_hidden_overrides = any((chat_url, next_edit_url, smart_paste_url))
     proxy_exact_possible = bool(api_token and completion_url)
 
