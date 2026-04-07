@@ -35,6 +35,10 @@ class PriceBookResolution:
 _PAREN_SUFFIX_RE = re.compile(r"\s*(\([^)]*\))\s*$")
 _CLAUDE_PREFIX_RE = re.compile(r"^claude\s+(sonnet|opus|haiku)\s+([0-9.]+)(.*)$", re.IGNORECASE)
 _CLAUDE_SUFFIX_RE = re.compile(r"^claude\s+([0-9.]+)\s+(sonnet|opus|haiku)(.*)$", re.IGNORECASE)
+_CLAUDE_API_RE = re.compile(
+    r"^claude[- ]?(sonnet|opus|haiku)[- ]?(\d+(?:[-.]\d+)?)(?:[- ]\d{8})?(.*)$",
+    re.IGNORECASE,
+)
 _GPT_RE = re.compile(r"^gpt[- ]?([0-9.]+)(?:[- ]?(mini|nano|codex))?(.*)$", re.IGNORECASE)
 DEFAULT_PRICING_PATH = resolve_app_home() / "pricing.json"
 
@@ -216,6 +220,13 @@ def _strip_parenthetical_suffix(value: str) -> str:
 
 
 def _normalize_claude(model: str) -> str | None:
+    api_match = _CLAUDE_API_RE.match(model.replace("_", "-").strip())
+    if api_match:
+        family = api_match.group(1)
+        version = api_match.group(2).replace("-", ".")
+        tail = api_match.group(3)
+        return f"Claude {family.title()} {version}{tail}".strip()
+
     match = _CLAUDE_PREFIX_RE.match(model)
     if not match:
         match = _CLAUDE_SUFFIX_RE.match(model)

@@ -14,10 +14,19 @@ class ClientDefinition:
     app_names: tuple[str, ...]
     default_coverage: str
     notes: str
+    home_globs: tuple[str, ...] = ()
 
     @property
     def app_paths(self) -> tuple[Path, ...]:
         return tuple(APPLICATIONS_DIR / name for name in self.app_names)
+
+    @property
+    def probe_paths(self) -> tuple[Path, ...]:
+        extra_paths: list[Path] = []
+        home = Path.home()
+        for pattern in self.home_globs:
+            extra_paths.extend(home.glob(pattern))
+        return (*self.app_paths, *extra_paths)
 
 
 CLIENT_DEFINITIONS: tuple[ClientDefinition, ...] = (
@@ -47,7 +56,23 @@ CLIENT_DEFINITIONS: tuple[ClientDefinition, ...] = (
         label="Visual Studio Code",
         app_names=("Visual Studio Code.app",),
         default_coverage="exact",
-        notes="OpenAI Codex extension usage is tracked under codex:vscode to avoid double-counting.",
+        notes="VS Code hosts multiple AI extensions. Codex is tracked today; Claude Code can be tracked from local Claude sessions.",
+    ),
+    ClientDefinition(
+        key="claude-code",
+        label="Claude Code",
+        app_names=(),
+        default_coverage="exact",
+        notes="Exact when local Claude session JSONL and matching debug logs are available.",
+        home_globs=(".vscode/extensions/anthropic.claude-code-*",),
+    ),
+    ClientDefinition(
+        key="augment",
+        label="Augment",
+        app_names=(),
+        default_coverage="unavailable",
+        notes="Local task and workspace state is present, but a stable token usage ledger has not been found yet.",
+        home_globs=(".vscode/extensions/augment.vscode-augment-*",),
     ),
     ClientDefinition(
         key="codex",
@@ -85,7 +110,7 @@ CLIENTS_BY_KEY = {client.key: client for client in CLIENT_DEFINITIONS}
 
 def detect_installed_clients() -> dict[str, bool]:
     return {
-        client.key: any(path.exists() for path in client.app_paths)
+        client.key: any(path.exists() for path in client.probe_paths)
         for client in CLIENT_DEFINITIONS
     }
 
@@ -95,6 +120,8 @@ def logical_client_for_usage_row(app: str, source: str) -> str | None:
         return "visual-studio-code"
     if app == "codex":
         return "codex"
+    if app == "claude-code":
+        return "claude-code"
     if app == "warp":
         return "warp"
     if app == "kaku":

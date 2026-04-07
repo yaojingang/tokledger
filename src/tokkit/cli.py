@@ -16,6 +16,7 @@ from typing import Iterable
 from .budget import resolve_budget_config, write_budget_template
 from .clients import CLIENT_DEFINITIONS, detect_installed_clients, logical_client_for_usage_row
 from .db import connect_db
+from .ingest_claude_code import scan_claude_code
 from .ingest_codebuddy import scan_codebuddy
 from .ingest_codex import scan_codex
 from .ingest_warp import scan_warp
@@ -37,6 +38,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     codex_cmd = subparsers.add_parser("scan-codex", help="Ingest Codex Desktop and CLI usage.")
     codex_cmd.add_argument("--codex-home", type=Path, default=Path.home() / ".codex")
+
+    claude_cmd = subparsers.add_parser("scan-claude-code", help="Ingest local Claude Code usage.")
+    claude_cmd.add_argument("--claude-home", type=Path, default=Path.home() / ".claude")
 
     codebuddy_cmd = subparsers.add_parser("scan-codebuddy", help="Estimate CodeBuddy usage from local task history.")
     codebuddy_cmd.add_argument(
@@ -62,6 +66,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     all_cmd = subparsers.add_parser("scan-all", help="Run all supported local ingesters together.")
     all_cmd.add_argument("--codex-home", type=Path, default=Path.home() / ".codex")
+    all_cmd.add_argument("--claude-home", type=Path, default=Path.home() / ".claude")
     all_cmd.add_argument(
         "--codebuddy-tasks-root",
         type=Path,
@@ -171,6 +176,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"codex scan complete: files={stats.files_scanned} token_events={stats.records_seen}")
             return 0
 
+        if args.command == "scan-claude-code":
+            stats = scan_claude_code(conn, claude_home=args.claude_home, tz=tz)
+            print(f"claude-code scan complete: files={stats.files_scanned} token_events={stats.records_seen}")
+            return 0
+
         if args.command == "scan-codebuddy":
             stats = scan_codebuddy(conn, tasks_root=args.codebuddy_tasks_root, tz=tz)
             print(
@@ -194,6 +204,7 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.command == "scan-all":
             codex_stats = scan_codex(conn, codex_home=args.codex_home, tz=tz)
+            claude_stats = scan_claude_code(conn, claude_home=args.claude_home, tz=tz)
             codebuddy_stats = scan_codebuddy(conn, tasks_root=args.codebuddy_tasks_root, tz=tz)
             warp_stats = scan_warp(
                 conn,
@@ -205,6 +216,8 @@ def main(argv: list[str] | None = None) -> int:
                 "scan complete: "
                 f"codex_files={codex_stats.files_scanned} "
                 f"codex_events={codex_stats.records_seen} "
+                f"claude_files={claude_stats.files_scanned} "
+                f"claude_events={claude_stats.records_seen} "
                 f"codebuddy_tasks={codebuddy_stats.tasks_seen} "
                 f"codebuddy_emitted={codebuddy_stats.records_emitted} "
                 f"warp_conversations={warp_stats.conversations_seen} "
@@ -1678,6 +1691,10 @@ def _doctor_action_for_client(row: dict[str, object]) -> str:
         return "point Kaku to the TokKit proxy, then retry"
     if client == "Warp":
         return "run `tok scan warp`"
+    if client == "Claude Code":
+        return "run `tok scan claude-code`"
+    if client == "Augment":
+        return "adapter not available yet"
     if client == "CodeBuddy":
         return "run `tok scan codebuddy`"
     if client == "Codex":
