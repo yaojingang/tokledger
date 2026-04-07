@@ -71,7 +71,10 @@ CLIENT_DEFINITIONS: tuple[ClientDefinition, ...] = (
         label="Augment",
         app_names=(),
         default_coverage="unavailable",
-        notes="Local task and workspace state is present, but a stable token usage ledger has not been found yet.",
+        notes=(
+            "Local task manifests, request selection metadata, tool outputs, and edit shards exist, "
+            "but no stable token ledger or complete prompt/response transcript has been found."
+        ),
         home_globs=(".vscode/extensions/augment.vscode-augment-*",),
     ),
     ClientDefinition(

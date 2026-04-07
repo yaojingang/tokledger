@@ -66,9 +66,11 @@ unless you move to the new path.
 Current source behavior:
 
 - Codex: exact for `input_tokens`, `output_tokens`, `cached_input_tokens`, and `reasoning_tokens`
+- Claude Code: exact from local Claude session JSONL, including VS Code entrypoints when present
 - Kaku proxy: exact when the upstream response includes OpenAI-style `usage`
 - Warp: partial for historical day-level backfill because local data is conversation-based
 - CodeBuddy: estimated from locally cached task text
+- Augment: currently unavailable; local storage shows task state, tool outputs, and edit checkpoints, but not a stable token ledger or full prompt/response history
 
 ## Highlights
 

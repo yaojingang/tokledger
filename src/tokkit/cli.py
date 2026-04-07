@@ -1694,7 +1694,7 @@ def _doctor_action_for_client(row: dict[str, object]) -> str:
     if client == "Claude Code":
         return "run `tok scan claude-code`"
     if client == "Augment":
-        return "adapter not available yet"
+        return "unavailable: local usage ledger not found"
     if client == "CodeBuddy":
         return "run `tok scan codebuddy`"
     if client == "Codex":

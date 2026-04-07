@@ -61,9 +61,11 @@ TokKit 重点强化的是：
 当前各来源的实际情况：
 
 - Codex：可精确拿到 `input_tokens`、`output_tokens`、`cached_input_tokens`、`reasoning_tokens`
+- Claude Code：可以从本地 Claude session JSONL 精确统计，包含可识别的 VS Code 入口
 - Kaku proxy：如果上游响应带 OpenAI 风格 `usage`，就能精确统计
 - Warp：本地更适合拿会话级 token 总量和 credits，历史按日拆分是 `partial`
 - CodeBuddy：根据本地任务文本估算，因此是 `estimated`
+- Augment：当前仍是 `unavailable`；本地能看到任务状态、工具输出和编辑 checkpoint，但没有稳定的 token ledger，也没有完整 prompt/response 历史
 
 ## 核心特点
 
