@@ -700,9 +700,9 @@ def render_daily_report(conn: sqlite3.Connection, target_date: str, *, json_mode
         "",
         (
             "Totals: "
-            f"input={format_int(totals['input_tokens'])} "
+            f"prompt={format_int(totals['input_tokens'])} "
             f"output={format_int(totals['output_tokens'])} "
-            f"cached={format_int(totals['cached_input_tokens'])} "
+            f"cached_prompt={format_int(totals['cached_input_tokens'])} "
             f"reasoning={format_int(totals['reasoning_tokens'])} "
             f"unsplit={format_int(totals['unsplit_tokens'])} "
             f"total={format_int(totals['total_tokens'])} "
@@ -722,9 +722,9 @@ def render_daily_report(conn: sqlite3.Connection, target_date: str, *, json_mode
                     "Hour",
                     "Total",
                     "Est.$",
-                    "Input",
+                    "Prompt",
                     "Output",
-                    "Cached",
+                    "Cached Prompt",
                     "Reasoning",
                     "Unsplit",
                     "Credits",
@@ -765,9 +765,9 @@ def render_daily_report(conn: sqlite3.Connection, target_date: str, *, json_mode
                     "Method",
                     "Total",
                     "Est.$",
-                    "Input",
+                    "Prompt",
                     "Output",
-                    "Cached",
+                    "Cached Prompt",
                     "Reasoning",
                     "Unsplit",
                     "Credits",
@@ -809,9 +809,9 @@ def render_daily_report(conn: sqlite3.Connection, target_date: str, *, json_mode
                     "Method",
                     "Total",
                     "Est.$",
-                    "Input",
+                    "Prompt",
                     "Output",
-                    "Cached",
+                    "Cached Prompt",
                     "Reasoning",
                     "Unsplit",
                     "Credits",
@@ -855,9 +855,9 @@ def render_daily_report(conn: sqlite3.Connection, target_date: str, *, json_mode
                     "Method",
                     "Total",
                     "Est.$",
-                    "Input",
+                    "Prompt",
                     "Output",
-                    "Cached",
+                    "Cached Prompt",
                     "Reasoning",
                     "Unsplit",
                     "Credits",
@@ -986,7 +986,7 @@ def render_range_report(conn: sqlite3.Connection, last_days: int, tz, *, json_mo
             "",
             "By date:",
             _render_table(
-                headers=["Date", "Total", "Est.$", "Input", "Output", "Cached", "Reasoning", "Unsplit", "Credits", "Records"],
+                headers=["Date", "Total", "Est.$", "Prompt", "Output", "Cached Prompt", "Reasoning", "Unsplit", "Credits", "Records"],
                 rows=[
                     [
                         row["local_date"],
@@ -1007,7 +1007,7 @@ def render_range_report(conn: sqlite3.Connection, last_days: int, tz, *, json_mo
             "",
             "By terminal:",
             _render_table(
-                headers=["Terminal", "Method", "Total", "Est.$", "Input", "Output", "Cached", "Reasoning", "Unsplit", "Credits", "Records"],
+                headers=["Terminal", "Method", "Total", "Est.$", "Prompt", "Output", "Cached Prompt", "Reasoning", "Unsplit", "Credits", "Records"],
                 rows=[
                     [
                         row["terminal"],
@@ -1029,7 +1029,7 @@ def render_range_report(conn: sqlite3.Connection, last_days: int, tz, *, json_mo
             "",
             "By model:",
             _render_table(
-                headers=["Model", "Method", "Total", "Est.$", "Input", "Output", "Cached", "Reasoning", "Unsplit", "Credits", "Records"],
+                headers=["Model", "Method", "Total", "Est.$", "Prompt", "Output", "Cached Prompt", "Reasoning", "Unsplit", "Credits", "Records"],
                 rows=[
                     [
                         row["model_label"],
@@ -1063,9 +1063,9 @@ def render_range_report(conn: sqlite3.Connection, last_days: int, tz, *, json_mo
                 "Method",
                 "Total",
                 "Est.$",
-                "Input",
+                "Prompt",
                 "Output",
-                "Cached",
+                "Cached Prompt",
                 "Reasoning",
                 "Unsplit",
                 "Credits",
@@ -1307,7 +1307,7 @@ def render_pricing_report(*, json_mode: bool) -> str:
             ),
             "",
             _render_table(
-                headers=["Model", "Input $/1M", "Cached $/1M", "Output $/1M", "Source"],
+                headers=["Model", "Prompt $/1M", "Cached Prompt $/1M", "Output $/1M", "Source"],
                 rows=[
                     [
                         row["model"],

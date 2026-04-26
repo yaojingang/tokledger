@@ -88,6 +88,9 @@ class ReportRenderingTests(unittest.TestCase):
         payload = json.loads(render_range_report(conn, 7, ZoneInfo("Asia/Shanghai"), json_mode=True))
 
         self.assertIn("Unsplit", rendered)
+        self.assertIn("Prompt", rendered)
+        self.assertIn("Cached Prompt", rendered)
+        self.assertNotIn("| Input", rendered)
         self.assertIn("150,702", rendered)
         self.assertEqual(payload["by_source"][0]["unsplit_tokens"], 150702)
         self.assertEqual(payload["by_source"][0]["input_tokens"], 1000)
