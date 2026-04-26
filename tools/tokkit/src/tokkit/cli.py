@@ -542,13 +542,13 @@ def render_daily_report(conn: sqlite3.Connection, target_date: str, *, json_mode
     )
     by_source = _aggregate_usage_rows(
         detailed_rows,
-        key_fields=["app", "source", "model_label"],
-        key_builder=lambda row: (row["app"], row["source"], row["model_label"]),
+        key_fields=["app", "source", "originator", "model_label"],
+        key_builder=lambda row: (row["app"], row["source"], row.get("originator", ""), row["model_label"]),
         sort_key=lambda row: (
             -int(row["total_tokens"]),
             -float(row["credits"]),
             str(row["app"]),
-            str(row["source"]),
+            str(_source_label(row["app"], row["source"], row.get("originator"))),
             str(row["model_label"]),
         ),
     )
@@ -730,7 +730,7 @@ def render_daily_report(conn: sqlite3.Connection, target_date: str, *, json_mode
                 rows=[
                     [
                         row["app"],
-                        row["source"],
+                        _source_label(row["app"], row["source"], row.get("originator")),
                         row["model_label"],
                         row["method"],
                         format_int(row["total_tokens"]),
@@ -798,13 +798,13 @@ def render_range_report(conn: sqlite3.Connection, last_days: int, tz, *, json_mo
     )
     rows = _aggregate_usage_rows(
         detailed_rows,
-        key_fields=["local_date", "app", "source", "model_label"],
-        key_builder=lambda row: (row["local_date"], row["app"], row["source"], row["model_label"]),
+        key_fields=["local_date", "app", "source", "originator", "model_label"],
+        key_builder=lambda row: (row["local_date"], row["app"], row["source"], row.get("originator", ""), row["model_label"]),
         sort_key=lambda row: (
             -int(str(row["local_date"]).replace("-", "")),
             -int(row["total_tokens"]),
             str(row["app"]),
-            str(row["source"]),
+            str(_source_label(row["app"], row["source"], row.get("originator"))),
             str(row["model_label"]),
         ),
     )
@@ -923,7 +923,7 @@ def render_range_report(conn: sqlite3.Connection, last_days: int, tz, *, json_mo
                 [
                     row["local_date"],
                     row["app"],
-                    row["source"],
+                    _source_label(row["app"], row["source"], row.get("originator")),
                     row["model_label"],
                     row["method"],
                     format_int(row["total_tokens"]),
@@ -2361,6 +2361,10 @@ def _terminal_label(app: str | None, source: str | None, originator: str | None 
     if source:
         return source
     return "unknown"
+
+
+def _source_label(app: str | None, source: str | None, originator: str | None = None) -> str:
+    return _terminal_label(app, source, originator)
 
 
 def _model_label(model: str | None, provider: str | None) -> str:
